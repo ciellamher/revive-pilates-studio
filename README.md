@@ -104,8 +104,7 @@ The repository must be public for Pages to serve it on a free account.
 
 ## Author
 
-Graciella Jimenez
-Course 6APSI
+Graciella Mhervie D. Jimenez | 6APSI | CS-402
 
 ## Licence
 
