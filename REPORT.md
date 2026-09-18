@@ -8,6 +8,8 @@ and specific: this is graded on what it shows about your week of work.
 
 ## What changed this week
 
+- Finalized the core project concept and received official approval from the professor.
+- Completed the low-fidelity wireframes to map out user flows and established the foundational design system.
 - Initialized the final project repository (`revive-pilates-studio`) and migrated frontend draft work.
 - Designed and built the complete frontend structure using React, Vite, and Tailwind CSS.
 - Implemented key pages including: Home, Pilates classes, Pricing, Booking, Checkout, Login, Register, Client Dashboard, and Admin Dashboard.
