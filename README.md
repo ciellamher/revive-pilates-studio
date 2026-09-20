@@ -89,7 +89,7 @@ Open `http://localhost:5173` in your browser. You should see the Revive Pilates 
 
 ## Screenshots
 
-![Revive Pilates Studio Home Page](./docs/screenshot.png)
+![Revive Pilates Studio Home Page](./docs/screenshot.png?v=2)
 
 ## Project structure
 
