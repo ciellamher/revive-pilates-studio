@@ -89,8 +89,6 @@ Open `http://localhost:5173` in your browser. You should see the Revive Pilates 
 
 ## Screenshots
 
-*(Replace the placeholder below with an actual screenshot of the running app!)*
-
 ![Revive Pilates Studio Home Page](./docs/screenshot.png)
 
 ## Project structure
