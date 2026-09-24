@@ -19,6 +19,22 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
 app.use(cors({ origin: allowedOrigins }))
 app.use(express.json({ limit: '100kb' }))
 
+app.use((request, response, next) => {
+  const b64auth = (request.headers.authorization || '').split(' ')[1] || ''
+  const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':')
+
+  if (
+    login && password &&
+    login === process.env.BASIC_AUTH_USER &&
+    password === process.env.BASIC_AUTH_PASS
+  ) {
+    return next()
+  }
+
+  response.set('WWW-Authenticate', 'Basic realm="401"')
+  response.status(401).send('Authentication required.')
+})
+
 // Is the process alive?
 app.get('/healthz', (request, response) => {
   response.json({ ok: true })
