@@ -10,6 +10,8 @@ import Pricing from './pages/Pricing';
 import Pilates from './pages/Pilates';
 import AdminDashboard from './pages/AdminDashboard';
 
+import Verify from './pages/Verify';
+
 function App() {
   return (
     <Router basename={import.meta.env.BASE_URL}>
@@ -24,6 +26,7 @@ function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/pilates" element={<Pilates />} />
+          <Route path="/verify" element={<Verify />} />
         </Routes>
       </PageTransition>
     </Router>

@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import logoImg from '../../assets/logo.png';
 import logoTextImg from '../../assets/logo_text.png';
 
-export default function Navbar() {
+export default function Navbar({ adminTheme }) {
   const { isLoggedIn, setIsLoggedIn } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -23,16 +23,20 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const navBg = adminTheme === 'dark' ? 'bg-[#2A180E]' : adminTheme === 'light' ? 'bg-[#D8CFC4]' : 'bg-[#ECE7DC]';
+  const textColor = adminTheme === 'dark' ? 'text-white' : 'text-[#3a2f2a]';
+  const logoFilter = adminTheme === 'dark' ? 'brightness-0 invert' : '';
+
   return (
-    <nav className="fixed w-full z-50 top-0 transition-all duration-300 bg-[#ECE7DC] shadow-sm">
+    <nav className={`fixed w-full z-50 top-0 transition-all duration-300 ${navBg} shadow-sm`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-[90px] items-center">
           
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center overflow-hidden">
             <Link to="/" className="flex items-center gap-2 sm:gap-3 group" onClick={() => setMobileMenuOpen(false)}>
-              <img src={logoImg} alt="Revive Studio Logo Icon" className="w-8 h-8 sm:w-10 sm:h-10 object-contain shrink-0" />
-              <img src={logoTextImg} alt="Revive Studio Pilates" className="h-6 sm:h-10 object-contain shrink-0" />
+              <img src={logoImg} alt="Revive Studio Logo Icon" className={`w-8 h-8 sm:w-10 sm:h-10 object-contain shrink-0 ${logoFilter}`} />
+              <img src={logoTextImg} alt="Revive Studio Pilates" className={`h-6 sm:h-10 object-contain shrink-0 ${logoFilter}`} />
             </Link>
           </div>
 
@@ -40,13 +44,13 @@ export default function Navbar() {
           <div className="hidden md:flex space-x-10 items-center mr-8">
             {!isAdmin && (
               <>
-                <Link to="/" className="text-[#3a2f2a] hover:opacity-70 font-semibold text-[15px] transition-opacity">
+                <Link to="/" className={`${textColor} hover:opacity-70 font-semibold text-[15px] transition-opacity`}>
                   About
                 </Link>
-                <Link to="/pilates" className="text-[#3a2f2a] hover:opacity-70 font-semibold text-[15px] transition-opacity">
+                <Link to="/pilates" className={`${textColor} hover:opacity-70 font-semibold text-[15px] transition-opacity`}>
                   Pilates
                 </Link>
-                <Link to="/book" className="text-[#3a2f2a] hover:opacity-70 font-semibold text-[15px] transition-opacity">
+                <Link to="/book" className={`${textColor} hover:opacity-70 font-semibold text-[15px] transition-opacity`}>
                   Schedule
                 </Link>
               </>
@@ -58,13 +62,13 @@ export default function Navbar() {
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity ml-2"
                 >
-                  <div className="w-10 h-10 rounded-full bg-brand-brown flex items-center justify-center text-brand-beige font-bold text-lg border border-brand-sand/50 shadow-sm">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border shadow-sm transition-colors ${adminTheme === 'dark' ? 'bg-[#D8CFC4] text-[#2A180E] border-transparent' : 'bg-[#2A180E] text-[#ECE7DC] border-brand-sand/50'}`}>
                     G
                   </div>
                   <div className="text-left hidden lg:block">
-                    <p className="text-sm font-medium text-brand-dark leading-tight">Graciella</p>
+                    <p className={`text-sm font-medium leading-tight ${textColor}`}>Graciella</p>
                   </div>
-                  <ChevronDown size={14} className="text-brand-dark/50" />
+                  <ChevronDown size={14} className={adminTheme === 'dark' ? 'text-white/70' : 'text-brand-dark/50'} />
                 </button>
 
                 {dropdownOpen && (
@@ -72,15 +76,19 @@ export default function Navbar() {
                     <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
                       <User size={18} className="text-white" /> My profile
                     </Link>
-                    <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
-                      <Calendar size={18} className="text-white" /> My schedule
-                    </Link>
-                    <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
-                      <BookOpen size={18} className="text-white" /> My courses
-                    </Link>
-                    <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
-                      <Package size={18} className="text-white" /> My packages
-                    </Link>
+                    {!isAdmin && (
+                      <>
+                        <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                          <Calendar size={18} className="text-white" /> My schedule
+                        </Link>
+                        <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                          <BookOpen size={18} className="text-white" /> My courses
+                        </Link>
+                        <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                          <Package size={18} className="text-white" /> My packages
+                        </Link>
+                      </>
+                    )}
                     
                     <hr className="border-white/10 my-3 mx-5" />
                     
@@ -107,7 +115,7 @@ export default function Navbar() {
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
             <button 
-              className="text-brand-dark hover:text-brand-brown p-2"
+              className={`${textColor} hover:opacity-70 p-2`}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <ChevronDown size={28} /> : <Menu size={28} />}

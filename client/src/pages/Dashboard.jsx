@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/organisms/Navbar';
 import { User, Calendar, BookOpen, Package, Receipt, Bell } from 'lucide-react';
+import CustomDropdown from '../components/atoms/CustomDropdown';
 import ContactFAQSection from '../components/organisms/ContactFAQSection';
 import Footer from '../components/organisms/Footer';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('profile');
+  const [scheduleFilter, setScheduleFilter] = useState('All types');
 
   const MENU_ITEMS = [
     { id: 'profile', label: 'My profile', icon: User },
@@ -103,9 +105,14 @@ export default function Dashboard() {
             </div>
             
             <div className="flex justify-end mb-8">
-              <select className="border border-brand-sand/50 rounded-lg px-4 py-2 text-sm outline-none bg-white min-w-[120px] font-medium appearance-none cursor-pointer">
-                <option>All types</option>
-              </select>
+              <div className="border border-brand-sand/50 rounded-lg outline-none bg-white min-w-[150px] font-medium cursor-pointer relative z-20">
+                <CustomDropdown
+                  value={scheduleFilter}
+                  onChange={setScheduleFilter}
+                  options={['All types', 'Reformer Group', 'Mat']}
+                  triggerClassName="px-4 py-2"
+                />
+              </div>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center text-center py-20">

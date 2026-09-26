@@ -1,144 +1,156 @@
-import express from 'express'
-import cors from 'cors'
-import { pool } from './db/pool.js'
-import * as sightings from './sightingsRepo.js'
+import express from 'express';
+import cors from 'cors';
+import nodemailer from 'nodemailer';
+import jwt from 'jsonwebtoken';
 
-const app = express()
+const app = express();
 
-// CORS before the routes. Middleware registered after a route never sees that
-// route's requests, which is the m4 lesson showing up in production.
-//
-// Name your origins. app.use(cors()) with no options sends
-// Access-Control-Allow-Origin: *, which lets any site on the internet call this
-// API from a visitor's browser, and is incompatible with cookies.
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
-  .filter(Boolean)
+  .filter(Boolean);
 
-app.use(cors({ origin: allowedOrigins }))
-app.use(express.json({ limit: '100kb' }))
+app.use(cors({ origin: allowedOrigins }));
+app.use(express.json({ limit: '100kb' }));
 
-app.use((request, response, next) => {
-  const b64auth = (request.headers.authorization || '').split(' ')[1] || ''
-  const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':')
+// Auth Secrets
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key';
 
-  if (
-    login && password &&
-    login === process.env.BASIC_AUTH_USER &&
-    password === process.env.BASIC_AUTH_PASS
-  ) {
-    return next()
+// Mock DB for user accounts (for demo purposes)
+let users = [
+  { name: 'Graciella Jimenez', email: 'graciellamher@gmail.com', pkg: '10-Class Reformer', credits: 4 },
+  { name: 'John Doe', email: 'john@example.com', pkg: '5-Class Mat', credits: 1 },
+  { name: 'Jane Smith', email: 'jane@example.com', pkg: 'Drop-in', credits: 0 },
+  { name: 'Chelsea Ann', email: 'chelsea@example.com', pkg: '10-Class Reformer', credits: 8 },
+  { name: 'Bea Carlos', email: 'bea@example.com', pkg: '5-Class Mat', credits: 5 },
+];
+
+app.get('/api/users', (req, res) => {
+  res.json({ users });
+});
+
+// Mock DB for classes (shared state for demo purposes)
+let classes = [];
+
+app.get('/api/classes', (req, res) => {
+  res.json({ classes });
+});
+
+app.post('/api/classes', (req, res) => {
+  const newClass = { id: Date.now().toString(), ...req.body };
+  classes.push(newClass);
+  res.status(201).json(newClass);
+});
+
+app.patch('/api/classes/:id', (req, res) => {
+  const { id } = req.params;
+  const index = classes.findIndex(c => c.id === id);
+  if (index !== -1) {
+    classes[index] = { ...classes[index], ...req.body };
+    res.json(classes[index]);
+  } else {
+    res.status(404).json({ error: 'Class not found' });
   }
+});
 
-  response.set('WWW-Authenticate', 'Basic realm="401"')
-  response.status(401).send('Authentication required.')
-})
+// Mock DB for bookings
+let bookings = [];
 
-// Is the process alive?
-app.get('/healthz', (request, response) => {
-  response.json({ ok: true })
-})
+app.get('/api/bookings', (req, res) => {
+  res.json({ bookings });
+});
 
-// Is the database reachable? A different question, and the one that tells you
-// in two seconds which half of a problem you have.
-app.get('/readyz', async (request, response) => {
-  try {
-    await pool.query('SELECT 1')
-    response.json({ ok: true, db: 'up' })
-  } catch (error) {
-    console.error('readyz failed:', error.message)
-    response.status(503).json({ ok: false, db: 'down' })
+app.post('/api/bookings', (req, res) => {
+  const newBooking = { id: `BK-${Math.floor(Math.random() * 9000) + 1000}`, status: 'pending', ...req.body };
+  bookings.push(newBooking);
+  res.status(201).json(newBooking);
+});
+
+app.patch('/api/bookings/:id', (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const booking = bookings.find(b => b.id === id);
+  if (booking) {
+    booking.status = status;
+    res.json(booking);
+  } else {
+    res.status(404).json({ error: 'Booking not found' });
   }
-})
+});
 
-// Validation lives on the server because the client can be bypassed. The
-// browser form is for a fast, friendly message; this is for correctness.
-function validate(body) {
-  const errors = []
-  const place = typeof body.place === 'string' ? body.place.trim() : ''
-  const description =
-    typeof body.description === 'string' ? body.description.trim() : ''
-  const spookiness = Number(body.spookiness)
+app.post('/api/auth/login', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
 
-  if (!place) errors.push('place is required')
-  if (place.length > 120) errors.push('place must be 120 characters or fewer')
-  if (description.length > 2000) errors.push('description must be 2000 characters or fewer')
-  if (!Number.isInteger(spookiness) || spookiness < 1 || spookiness > 5) {
-    errors.push('spookiness must be a whole number from 1 to 5')
-  }
-
-  return { errors, value: { place, description, spookiness } }
-}
-
-app.get('/api/sightings', async (request, response, next) => {
-  try {
-    response.json(await sightings.getAll(pool))
-  } catch (error) {
-    next(error)
-  }
-})
-
-app.get('/api/sightings/:id', async (request, response, next) => {
-  try {
-    const row = await sightings.getById(pool, request.params.id)
-    if (!row) return response.status(404).json({ error: 'Not found' })
-    response.json(row)
-  } catch (error) {
-    next(error)
-  }
-})
-
-app.post('/api/sightings', async (request, response, next) => {
-  const { errors, value } = validate(request.body ?? {})
-  if (errors.length > 0) return response.status(400).json({ error: errors.join('; ') })
-
-  try {
-    response.status(201).json(await sightings.create(pool, value))
-  } catch (error) {
-    next(error)
-  }
-})
-
-app.put('/api/sightings/:id', async (request, response, next) => {
-  const { errors, value } = validate(request.body ?? {})
-  if (errors.length > 0) return response.status(400).json({ error: errors.join('; ') })
+  // Generate a JWT token valid for 15 minutes
+  const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: '15m' });
+  const magicLink = `http://localhost:5173/verify?token=${token}`;
 
   try {
-    const row = await sightings.update(pool, request.params.id, value)
-    if (!row) return response.status(404).json({ error: 'Not found' })
-    response.json(row)
-  } catch (error) {
-    next(error)
-  }
-})
+    // We use ethereal email for local development testing
+    let testAccount = await nodemailer.createTestAccount();
+    
+    let transporter = nodemailer.createTransport({
+      host: "smtp.ethereal.email",
+      port: 587,
+      secure: false, 
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
 
-app.delete('/api/sightings/:id', async (request, response, next) => {
-  try {
-    const removed = await sightings.remove(pool, request.params.id)
-    if (!removed) return response.status(404).json({ error: 'Not found' })
-    response.status(204).end()
+    let info = await transporter.sendMail({
+      from: '"Revive Pilates Studio" <noreply@revivestudio.com>',
+      to: email,
+      subject: "Your Login Link",
+      html: `
+        <div style="font-family: sans-serif; padding: 20px;">
+          <h2>Sign in to Revive Pilates</h2>
+          <p>Click the link below to securely sign in to your account. This link expires in 15 minutes.</p>
+          <a href="${magicLink}" style="display: inline-block; padding: 12px 24px; background: #4A1D1D; color: white; text-decoration: none; border-radius: 20px; margin-top: 10px;">Sign In</a>
+        </div>
+      `,
+    });
+
+    console.log("Email sent! Preview URL: %s", nodemailer.getTestMessageUrl(info));
+    
+    // We also return the preview URL in development so the frontend can display it if we want
+    res.json({ message: 'A login link has been sent to your email!', previewUrl: nodemailer.getTestMessageUrl(info) });
   } catch (error) {
-    next(error)
+    console.error('Error sending email:', error);
+    res.status(500).json({ error: 'Failed to send link' });
   }
-})
+});
+
+// Endpoint to verify the token and return the user profile
+app.get('/api/auth/verify', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) return res.status(401).json({ error: 'No token provided' });
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(401).json({ error: 'Invalid or expired link' });
+    
+    res.json({
+      user: {
+        email: decoded.email,
+        isAdmin: decoded.email.toLowerCase() === 'gdjimenez@student.hau.edu.ph'
+      }
+    });
+  });
+});
 
 app.use((request, response) => {
   response.status(404).json({ error: 'No such route' })
 })
 
-// The detail goes in your logs; the visitor gets a plain message. Sending a
-// stack trace to a stranger tells them about your file layout and dependencies.
 app.use((error, request, response, next) => {
   console.error(error)
   response.status(500).json({ error: 'Something went wrong on the server' })
 })
 
-// The host chooses the port and tells you through PORT. Hardcoding 3000 is the
-// commonest reason a first deploy is marked unhealthy and killed.
-const port = process.env.PORT || 3000
-
+const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`API listening on http://localhost:${port}`)
-  console.log(`CORS allows: ${allowedOrigins.join(', ')}`)
-})
+});

@@ -22,7 +22,16 @@ export default function Checkout() {
   // Infer classType from title for dynamic pricing and shapes
   const classType = title.toLowerCase().includes('mat') ? 'mat' : title.toLowerCase().includes('barre') ? 'barre' : 'reformer';
 
-  const price = classType === 'reformer' ? '800' : '500';
+  let price = '1,100'; // Default to Reformer Group
+  const t = title.toLowerCase();
+  
+  if (t.includes('mat') || t.includes('barre')) {
+    price = '500';
+  } else if (t.includes('private')) {
+    price = '2,500';
+  } else if (t.includes('clinical')) {
+    price = '2,800';
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF7F2]">
@@ -219,7 +228,25 @@ export default function Checkout() {
                   {isWaitlist ? 'Join Waitlist' : 'Book Now'}
                 </button>
                 {!isWaitlist && (
-                  <p className="text-center text-sm font-bold text-brand-dark">{slotsLeft} slots left</p>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-brand-dark">{slotsLeft} slots left</p>
+                    
+                    {classType === 'reformer' && slotsLeft === 4 && title !== 'Private Class' && (
+                      <Link 
+                        to="/checkout"
+                        state={{
+                          title: "Private Class",
+                          instructor: instructor,
+                          time: time,
+                          isWaitlist: false,
+                          slotsLeft: 1
+                        }}
+                        className="inline-block text-xs font-bold text-brand-brown hover:text-brand-dark underline underline-offset-2 mt-3 transition-colors"
+                      >
+                        Want to book this as a Private Class?
+                      </Link>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

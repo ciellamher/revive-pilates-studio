@@ -16,7 +16,7 @@ export default function LocationSection() {
           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent"></div>
           
           <div className="relative h-full flex flex-col justify-center px-8 md:px-16 max-w-3xl text-white">
-            <h3 className="text-2xl md:text-3xl font-bold font-sans mb-8">Revive Studio - Angeles City</h3>
+            <h3 className="text-2xl md:text-3xl font-bold font-sans mb-8">Angeles City</h3>
             
             <div className="flex items-start gap-4 mb-4">
               <MapPin size={22} className="mt-0.5 shrink-0" />
@@ -50,7 +50,7 @@ export default function LocationSection() {
           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent"></div>
           
           <div className="relative h-full flex flex-col justify-center px-8 md:px-16 max-w-3xl text-white">
-            <h3 className="text-2xl md:text-3xl font-bold font-sans mb-8">Revive Studio - San Fernando</h3>
+            <h3 className="text-2xl md:text-3xl font-bold font-sans mb-8">San Fernando</h3>
             
             <div className="flex items-start gap-4 mb-4">
               <MapPin size={22} className="mt-0.5 shrink-0" />

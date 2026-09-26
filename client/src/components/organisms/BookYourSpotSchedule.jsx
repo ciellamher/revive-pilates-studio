@@ -1,146 +1,142 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import CustomDropdown from '../atoms/CustomDropdown';
 
-export default function BookYourSpotSchedule() {
-  const [selectedDay, setSelectedDay] = useState('20');
+const getWeekDays = (weeksOffset = 0) => {
+  const days = [];
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const absoluteToday = new Date();
+  absoluteToday.setHours(0, 0, 0, 0); // normalize
 
-  // Extended days to mimic the scrollable calendar in the screenshot
-  const days = [
-    { day: 'Sun', date: '16' },
-    { day: 'Mon', date: '17' },
-    { day: 'Tue', date: '18' },
-    { day: 'Wed', date: '19' },
-    { day: 'Thu', date: '20' },
-    { day: 'Fri', date: '21' },
-    { day: 'Sat', date: '22' }
-  ];
+  const targetDate = new Date(absoluteToday);
+  targetDate.setDate(absoluteToday.getDate() + (weeksOffset * 7));
+  
+  // 7 days centered around targetDate
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(targetDate);
+    d.setDate(targetDate.getDate() + i);
+    const isPast = d < absoluteToday;
+    
+    days.push({
+      day: dayNames[d.getDay()],
+      date: d.getDate().toString(),
+      fullDate: d,
+      id: d.toDateString(), // unique identifier for the day
+      isPast
+    });
+  }
+  return days;
+};
 
-  const scheduleData = [
-    {
-      dateHeading: "Thu, 20 Aug",
-      classesCount: 4,
-      classes: [
-        {
-          id: 1,
-          time: "09:00am",
-          duration: "50 mins",
-          title: "Reformer",
-          level: "All Levels",
-          instructor: "Coach Chelsea",
-          location: "Angeles",
-          spots: "0 / 5 left",
-          status: "Waitlist"
-        },
-        {
-          id: 2,
-          time: "11:00am",
-          duration: "50 mins",
-          title: "Mat Pilates",
-          level: "All Levels",
-          instructor: "Coach Bea",
-          location: "San Fernando",
-          spots: "5 / 10 left",
-          status: "Book Now"
-        },
-        {
-          id: 3,
-          time: "03:00pm",
-          duration: "50 mins",
-          title: "Barre",
-          level: "All Levels",
-          instructor: "Coach Chelsea",
-          location: "Angeles",
-          spots: "0 / 10 left",
-          status: "Waitlist"
-        },
-        {
-          id: 4,
-          time: "05:00pm",
-          duration: "50 mins",
-          title: "Private Session",
-          level: "All Levels",
-          instructor: "Coach Van",
-          location: "San Fernando",
-          spots: "1 / 1 left",
-          status: "Book Now"
-        }
-      ]
-    },
-    {
-      dateHeading: "Fri, 21 Aug",
-      classesCount: 4,
-      classes: [
-        {
-          id: 5,
-          time: "08:00am",
-          duration: "50 mins",
-          title: "Reformer",
-          level: "All Levels",
-          instructor: "Coach Van",
-          location: "San Fernando",
-          spots: "5 / 5 left",
-          status: "Book Now"
-        },
-        {
-          id: 6,
-          time: "10:00am",
-          duration: "50 mins",
-          title: "Clinical Pilates",
-          level: "All Levels",
-          instructor: "Coach Bea",
-          location: "Angeles",
-          spots: "0 / 1 left",
-          status: "Waitlist"
-        },
-        {
-          id: 7,
-          time: "02:00pm",
-          duration: "50 mins",
-          title: "Barre",
-          level: "All Levels",
-          instructor: "Coach Chelsea",
-          location: "San Fernando",
-          spots: "7 / 10 left",
-          status: "Book Now"
-        },
-        {
-          id: 8,
-          time: "06:00pm",
-          duration: "50 mins",
-          title: "Mat Pilates",
-          level: "All Levels",
-          instructor: "Coach Van",
-          location: "Angeles",
-          spots: "10 / 10 left",
-          status: "Book Now"
-        }
-      ]
+export default function BookYourSpotSchedule({ globalLocation = 'Location', setGlobalLocation = () => {} }) {
+  const [weekOffset, setWeekOffset] = useState(0);
+  const currentWeekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
+  const [selectedDayId, setSelectedDayId] = useState(() => new Date().toDateString());
+
+  // Filter states
+  const [classType, setClassType] = useState('Classes');
+  const [instructor, setInstructor] = useState('Instructor');
+  const [category, setCategory] = useState('All categories');
+  
+  // Use globalLocation as the local state equivalent
+  const location = globalLocation;
+  const setLocation = setGlobalLocation;
+
+  // Whenever we change weeks, if the selected day is not in the new week,
+  // we could optionally select the center day of the new week.
+  useEffect(() => {
+    if (weekOffset !== 0) {
+      setSelectedDayId(currentWeekDays[3].id);
+    } else {
+      setSelectedDayId(new Date().toDateString());
     }
-  ];
+  }, [weekOffset]);
+
+  const getHeading = (dayIndex) => {
+    const d = currentWeekDays[dayIndex].fullDate;
+    return `${currentWeekDays[dayIndex].day}, ${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
+  };
+
+  const [classes, setClasses] = useState([]);
+  
+  useEffect(() => {
+    fetch('http://localhost:3000/api/classes')
+      .then(res => res.json())
+      .then(data => {
+        if (data.classes) {
+          setClasses(data.classes);
+        }
+      })
+      .catch(err => console.error("Error fetching classes:", err));
+  }, []);
+
+  const scheduleData = useMemo(() => {
+    const data = [];
+    currentWeekDays.forEach((d, idx) => {
+      const dayClasses = classes.filter(cls => {
+        if (cls.dateId !== d.id) return false;
+        if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return false;
+        if (classType !== 'Classes' && cls.title && !cls.title.toLowerCase().includes(classType.toLowerCase())) return false;
+        if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
+        return true;
+      });
+      data.push({
+        dayId: d.id,
+        dateHeading: getHeading(idx),
+        classesCount: dayClasses.length,
+        classes: dayClasses
+      });
+    });
+    return data;
+  }, [currentWeekDays, classes, location, classType, instructor]);
+
+  const availableInstructors = useMemo(() => {
+    const instructors = new Set();
+    classes.forEach(cls => {
+      if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return;
+      if (cls.instructor) {
+        instructors.add(cls.instructor);
+      }
+    });
+    return ['Instructor', ...Array.from(instructors)];
+  }, [classes, location]);
+
+  useEffect(() => {
+    if (instructor !== 'Instructor' && !availableInstructors.includes(instructor)) {
+      setInstructor('Instructor');
+    }
+  }, [availableInstructors, instructor]);
+
+  const monthYearHeading = currentWeekDays[0].fullDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
   return (
     <div className="w-full relative">
       
-
       {/* Main Schedule Container */}
-      <div className="bg-[#EBE7DF] w-full min-h-screen px-4 sm:px-6 lg:px-12 py-12">
+      <div className="w-full min-h-screen px-4 sm:px-6 lg:px-12 py-12 transition-colors duration-500">
         <div className="max-w-[1000px] mx-auto">
           
+
+
           {/* Top Date Scroller */}
           <div className="flex items-center gap-4 mb-8 overflow-x-auto hide-scrollbar">
             {/* Back Arrow */}
-            <button className="w-8 h-8 rounded-full border border-brand-dark/30 flex items-center justify-center text-brand-dark shrink-0 hover:bg-brand-dark/10">
+            <button 
+              onClick={() => setWeekOffset(prev => prev - 1)}
+              className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 transition-colors ${location === 'Angeles City' ? 'border-white/30 text-white hover:bg-white/10' : 'border-brand-dark/30 text-brand-dark hover:bg-brand-dark/10'}`}
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
             
             <div className="flex flex-1 gap-2 md:gap-4 justify-between items-center px-4">
-              {days.map((d) => {
-                const isSelected = d.date === selectedDay;
+              {currentWeekDays.map((d) => {
+                const isSelected = d.id === selectedDayId;
+                const pastStyle = d.isPast && !isSelected ? 'opacity-40' : '';
                 return (
                   <button 
-                    key={d.date}
-                    onClick={() => setSelectedDay(d.date)}
-                    className={`flex flex-col items-center justify-center py-2 px-4 md:px-6 rounded-[24px] transition-colors min-w-[70px] ${isSelected ? 'bg-brand-dark text-white' : 'text-brand-dark hover:bg-brand-dark/10'}`}
+                    key={d.id}
+                    onClick={() => setSelectedDayId(d.id)}
+                    className={`flex flex-col items-center justify-center py-2 px-4 md:px-6 rounded-[24px] transition-colors min-w-[70px] ${isSelected ? (location === 'Angeles City' ? 'bg-white text-[#3A2A20]' : 'bg-[#2A180E] text-white') : (location === 'Angeles City' ? 'text-white hover:bg-white/10' : 'text-[#3A2A20] hover:bg-black/5')} ${pastStyle}`}
                   >
                     <span className="text-xs font-medium mb-1">{d.day}</span>
                     <span className="text-xl font-bold">{d.date}</span>
@@ -150,44 +146,63 @@ export default function BookYourSpotSchedule() {
             </div>
 
             {/* Next Arrow */}
-            <button className="w-8 h-8 rounded-full border border-brand-dark/30 flex items-center justify-center text-brand-dark shrink-0 hover:bg-brand-dark/10">
+            <button 
+              onClick={() => setWeekOffset(prev => prev + 1)}
+              className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 transition-colors ${location === 'Angeles City' ? 'border-white/30 text-white hover:bg-white/10' : 'border-brand-dark/30 text-brand-dark hover:bg-brand-dark/10'}`}
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
             </button>
           </div>
 
           {/* Filter Bar (Segmented) */}
-          <div className="w-full border border-brand-dark/30 rounded-[24px] flex flex-col md:flex-row overflow-hidden mb-12">
-            <div className="flex-1 px-4 py-3 border-b md:border-b-0 md:border-r border-brand-dark/30 flex justify-between items-center cursor-pointer hover:bg-brand-dark/5 text-brand-dark text-sm">
-              <span>All categories</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+          <div className="w-full border border-brand-dark/30 rounded-[24px] flex flex-col md:flex-row overflow-hidden mb-12 bg-[#F5F2ED]">
+            <div className="flex-1 relative border-b md:border-b-0 md:border-r border-brand-dark/30">
+              <CustomDropdown
+                value={category}
+                onChange={setCategory}
+                options={['All categories', 'Group Classes', 'Private Sessions']}
+                placeholder="All categories"
+              />
             </div>
-            <div className="flex-1 px-4 py-3 border-b md:border-b-0 md:border-r border-brand-dark/30 flex justify-between items-center cursor-pointer hover:bg-brand-dark/5 text-brand-dark text-sm">
-              <span>Location</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+            <div className="flex-1 relative border-b md:border-b-0 md:border-r border-brand-dark/30">
+              <CustomDropdown
+                value={location}
+                onChange={setLocation}
+                options={['Location', 'Angeles City', 'San Fernando']}
+                placeholder="Location"
+              />
             </div>
-            <div className="flex-1 px-4 py-3 border-b md:border-b-0 md:border-r border-brand-dark/30 flex justify-between items-center cursor-pointer hover:bg-brand-dark/5 text-brand-dark text-sm">
-              <span>Classes</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+            <div className="flex-1 relative border-b md:border-b-0 md:border-r border-brand-dark/30">
+              <CustomDropdown
+                value={classType}
+                onChange={setClassType}
+                options={['Classes', 'Reformer Group', 'Mat', 'Barre', 'Private Class', 'Clinical Pilates']}
+                placeholder="Classes"
+              />
             </div>
-            <div className="flex-1 px-4 py-3 flex justify-between items-center cursor-pointer hover:bg-brand-dark/5 text-brand-dark text-sm">
-              <span>Instructor</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+            <div className="flex-1 relative">
+              <CustomDropdown
+                value={instructor}
+                onChange={setInstructor}
+                options={availableInstructors}
+                placeholder="Instructor"
+              />
             </div>
           </div>
 
           {/* List View */}
           <div className="w-full">
             {scheduleData
-              .filter(dayGroup => dayGroup.dateHeading.includes(selectedDay))
+              .filter(dayGroup => dayGroup.dayId === selectedDayId)
               .map((dayGroup, idx) => (
               <div key={idx} className="mb-16">
                 
                 {/* Date Header */}
                 <div className="flex items-baseline gap-4 mb-6">
-                  <h3 className="text-brand-dark text-2xl font-sans font-bold">
+                  <h3 className={`text-2xl font-sans font-bold ${location === 'Angeles City' ? 'text-white' : 'text-brand-dark'}`}>
                     {dayGroup.dateHeading}
                   </h3>
-                  <span className="text-brand-dark/60 text-sm font-medium">{dayGroup.classesCount} classes</span>
+                  <span className={`text-sm font-medium ${location === 'Angeles City' ? 'text-white/60' : 'text-brand-dark/60'}`}>{dayGroup.classesCount} classes</span>
                 </div>
                 
                 <div className="flex flex-col gap-4">
@@ -220,7 +235,7 @@ export default function BookYourSpotSchedule() {
                         </div>
                         
                         {/* Action Button */}
-                        <div className="flex justify-end md:w-1/5 shrink-0">
+                        <div className="flex flex-col gap-2 justify-center md:w-1/5 shrink-0">
                           <Link 
                             to="/checkout"
                             state={{
@@ -230,10 +245,33 @@ export default function BookYourSpotSchedule() {
                               isWaitlist: cls.status === 'Waitlist',
                               slotsLeft: parseInt(cls.spots.split(' ')[0]) || 0
                             }}
-                            className="bg-brand-sand text-brand-dark px-8 py-3 rounded-full text-sm font-bold hover:bg-white transition-colors w-full md:w-auto shadow-sm text-center block"
+                            className="bg-brand-sand text-brand-dark px-8 py-3 rounded-full text-sm font-bold hover:bg-white transition-colors w-full shadow-sm text-center block"
                           >
                             {cls.status}
                           </Link>
+                          
+                          {(() => {
+                            const match = cls.spots.match(/(\d+)\s*\/\s*(\d+)/);
+                            const isMatOrBarre = cls.title.toLowerCase().includes('mat') || cls.title.toLowerCase().includes('barre');
+                            if (match && match[1] === match[2] && parseInt(match[1]) > 0 && cls.title !== "Private Class" && !isMatOrBarre) {
+                              return (
+                                <Link 
+                                  to="/checkout"
+                                  state={{
+                                    title: "Private Class",
+                                    instructor: cls.instructor,
+                                    time: cls.time,
+                                    isWaitlist: false,
+                                    slotsLeft: 1
+                                  }}
+                                  className="text-[11px] text-center text-brand-beige/80 hover:text-white font-medium underline underline-offset-2 transition-colors w-full block mt-1"
+                                >
+                                  Book as Private Class
+                                </Link>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
 
                       </div>

@@ -1,55 +1,101 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from '../components/organisms/Navbar';
-import { Calendar, Users, ClipboardCheck, Settings, CheckCircle, XCircle, Plus, Edit3, LayoutList, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import ClassScheduleGrid from '../components/organisms/ClassScheduleGrid';
+import CustomDropdown from '../components/atoms/CustomDropdown';
+import { Calendar, Users, ClipboardCheck, Settings, CheckCircle, XCircle, Plus, Edit3, LayoutList, ChevronLeft, ChevronRight, ChevronDown, Search, ArrowUp, ArrowDown, Filter, Upload, Image as ImageIcon } from 'lucide-react';
+
+const TIME_OPTIONS = (() => {
+  const times = [];
+  for (let h = 8; h <= 19; h++) {
+    for (let m = 0; m < 60; m += 10) {
+      if (h === 19 && m > 0) break;
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      let hh = h % 12;
+      if (hh === 0) hh = 12;
+      times.push(`${hh.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`);
+    }
+  }
+  return times;
+})();
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('pending');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
+  const [prefilledClassData, setPrefilledClassData] = useState(null);
+  const [classTypeTitle, setClassTypeTitle] = useState('Reformer Flow');
+  const [experienceLevel, setExperienceLevel] = useState('Beginner');
+  const [modalStartTime, setModalStartTime] = useState('08:00 AM');
+  const [modalEndTime, setModalEndTime] = useState('08:50 AM');
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Clients state
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientFilter, setClientFilter] = useState('All');
+  const [clientSort, setClientSort] = useState('name');
+  const [clientSortDir, setClientSortDir] = useState('asc');
+
+  const [clientsData, setClientsData] = useState([]);
+
+  useEffect(() => {
+    fetch('http://localhost:3000/api/users')
+      .then(res => res.json())
+      .then(data => {
+        if (data.users) setClientsData(data.users);
+      })
+      .catch(err => console.error("Error fetching users:", err));
+  }, []);
   const [scheduleView, setScheduleView] = useState('calendar'); // 'list' or 'calendar'
-  const [selectedBranch, setSelectedBranch] = useState('angeles');
+  const [selectedBranch, setSelectedBranch] = useState('Angeles Branch');
+  
+  const isAngeles = selectedBranch === 'Angeles Branch';
+  
+  const theme = {
+    bg: isAngeles ? 'bg-[#2A180E]' : 'bg-[#D8CFC4]',
+    bgHover: isAngeles ? 'hover:bg-[#1A0F08]' : 'hover:bg-[#C0B7AB]',
+    text: isAngeles ? 'text-white' : 'text-[#3A2A20]',
+    border: isAngeles ? 'border-[#2A180E]' : 'border-[#D8CFC4]',
+    pillBg: isAngeles ? 'bg-[#2A180E]/10' : 'bg-[#D8CFC4]/50',
+    pillText: isAngeles ? 'text-[#2A180E]' : 'text-[#3A2A20]',
+  };
   
   // Simulated State for pending bookings
-  const [pendingBookings, setPendingBookings] = useState([
-    {
-      id: 'BK-7829',
-      clientName: 'Graciella Jimenez',
-      className: 'Reformer Flow',
-      date: 'Thu, 20 Aug 2026',
-      time: '08:00 AM',
-      spot: 'S2',
-      amount: '₱800',
-      referenceId: 'GC-10928374',
-      status: 'pending',
-      receiptUrl: '/src/assets/revive-photos/reformer_22.jpg', // Dummy receipt
-    },
-    {
-      id: 'BK-7830',
-      clientName: 'John Doe',
-      className: 'Mat Pilates',
-      date: 'Fri, 21 Aug 2026',
-      time: '10:00 AM',
-      spot: 'S8',
-      amount: '₱500',
-      referenceId: 'BPI-998822',
-      status: 'pending',
-      receiptUrl: '/src/assets/revive-photos/reformer_11.jpg',
-    }
-  ]);
+  const [pendingBookings, setPendingBookings] = useState([]);
+
+  useEffect(() => {
+    fetch('http://localhost:3000/api/bookings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.bookings) setPendingBookings(data.bookings);
+      })
+      .catch(console.error);
+  }, []);
 
   const handleConfirm = (id) => {
-    setPendingBookings(prev => prev.map(booking => 
-      booking.id === id ? { ...booking, status: 'confirmed' } : booking
-    ));
-    setSelectedBooking(null);
+    fetch(`http://localhost:3000/api/bookings/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'confirmed' })
+    }).then(() => {
+      setPendingBookings(prev => prev.map(booking => 
+        booking.id === id ? { ...booking, status: 'confirmed' } : booking
+      ));
+      setSelectedBooking(null);
+    });
   };
 
   const handleReject = (id) => {
-    setPendingBookings(prev => prev.map(booking => 
-      booking.id === id ? { ...booking, status: 'rejected' } : booking
-    ));
-    setSelectedBooking(null);
+    fetch(`http://localhost:3000/api/bookings/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'rejected' })
+    }).then(() => {
+      setPendingBookings(prev => prev.map(booking => 
+        booking.id === id ? { ...booking, status: 'rejected' } : booking
+      ));
+      setSelectedBooking(null);
+    });
   };
 
   const MENU_ITEMS = [
@@ -68,8 +114,8 @@ export default function AdminDashboard() {
         <div className="animate-fade-in">
           <h2 className="text-3xl font-bold text-brand-dark mb-8 flex items-baseline gap-3">
             Pending Verifications
-            <span className="text-lg font-medium text-brand-dark/50 bg-brand-sand/20 px-3 py-1 rounded-full">
-              {selectedBranch === 'angeles' ? 'Angeles' : 'San Fernando'}
+            <span className={`text-lg font-medium px-3 py-1 rounded-full ${theme.pillBg} ${theme.pillText}`}>
+              {selectedBranch === 'Angeles Branch' ? 'Angeles' : 'San Fernando'}
             </span>
           </h2>
           
@@ -105,7 +151,7 @@ export default function AdminDashboard() {
                         <td className="py-4 px-6 text-right">
                           <button 
                             onClick={() => setSelectedBooking(booking)}
-                            className="bg-brand-brown text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors whitespace-nowrap"
+                            className={`${theme.bg} ${theme.text} ${theme.bgHover} text-xs font-bold px-4 py-2 rounded-lg transition-colors whitespace-nowrap`}
                           >
                             Verify Receipt
                           </button>
@@ -159,252 +205,192 @@ export default function AdminDashboard() {
       );
     }
     if (activeTab === 'schedule') {
-      const weekDays = [
-        { day: 'Sun', date: '16', active: false },
-        { day: 'Mon', date: '17', active: false },
-        { day: 'Tue', date: '18', active: false },
-        { day: 'Wed', date: '19', active: false },
-        { day: 'Thu', date: '20', active: true },
-        { day: 'Fri', date: '21', active: false },
-        { day: 'Sat', date: '22', active: false },
-      ];
-
-      const renderCalendar = () => {
-        const mockEvents = {
-          '16': [
-            { time: '08:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'San Fernando' },
-            { time: '10:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'San Fernando' },
-            { time: '01:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Giana', location: 'Angeles' },
-            { time: '03:00 PM (50 min)', type: 'Private Session', instructor: 'Coach Giana', location: 'Angeles' },
-          ],
-          '17': [
-             { time: '08:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Dani', location: 'Angeles' },
-             { time: '09:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Dani', location: 'Angeles' },
-             { time: '01:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'San Fernando' },
-             { time: '02:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'San Fernando' },
-             { time: '04:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'Angeles' },
-          ],
-          '18': [
-             { time: '08:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'San Fernando' },
-             { time: '09:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'San Fernando' },
-             { time: '10:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'Angeles' },
-             { time: '04:00 PM (50 min)', type: 'Mat Pilates', instructor: 'Coach Chelsea', location: 'Angeles' },
-             { time: '06:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'San Fernando' },
-          ],
-          '19': [
-             { time: '08:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'Angeles' },
-             { time: '10:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'San Fernando' },
-             { time: '02:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'Angeles' },
-             { time: '05:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'San Fernando' },
-          ],
-          '20': [
-             { time: '09:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'Angeles' },
-             { time: '11:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'San Fernando' },
-             { time: '03:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'Angeles' },
-             { time: '05:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Bea', location: 'San Fernando', full: true },
-          ],
-          '21': [
-             { time: '08:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Van', location: 'Angeles' },
-             { time: '10:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Van', location: 'San Fernando', full: true },
-             { time: '02:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'Angeles' },
-             { time: '06:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'San Fernando' },
-          ],
-          '22': [
-             { time: '09:00 AM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'Angeles', full: true },
-             { time: '10:30 AM (50 min)', type: 'Barre', instructor: 'Coach Alex', location: 'San Fernando' },
-             { time: '02:00 PM (50 min)', type: 'Reformer Flow', instructor: 'Coach Chelsea', location: 'Angeles' },
-          ],
-        };
-
-        return (
-          <div className="bg-[#F8F5F0] rounded-[32px] p-8 mt-6 border border-brand-sand/30 shadow-sm">
-            {/* Calendar Grid Wrapper */}
-            <div className="bg-transparent rounded-3xl border border-brand-sand/30 overflow-hidden">
-              {/* Day Headers */}
-              <div className="grid grid-cols-7 border-b border-brand-sand/30 divide-x divide-brand-sand/30">
-                {weekDays.map((d, i) => (
-                  <div key={i} className="py-4 flex flex-col items-center justify-center gap-1 bg-transparent">
-                    <span className="text-[10px] font-bold text-brand-dark/50">{d.day}</span>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${d.active ? 'bg-[#3A2F2A] text-white' : 'text-brand-dark'}`}>
-                      {d.date}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Grid Columns */}
-              <div className="grid grid-cols-7 divide-x divide-brand-sand/30 min-h-[500px]">
-                {weekDays.map((d, i) => (
-                  <div key={i} className="p-2 flex flex-col gap-2 bg-transparent">
-                    {(mockEvents[d.date] || []).map((event, eIdx) => (
-                      <div key={eIdx} className="bg-brand-brown/10 border-l-[3px] border-brand-brown rounded p-2 flex flex-col gap-0.5 hover:bg-brand-brown/20 cursor-pointer transition-colors shadow-sm">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-[9px] font-bold text-brand-dark/60 uppercase tracking-wider">{event.time}</span>
-                          {event.full && <span className="text-[8px] font-bold text-red-700 tracking-widest bg-red-100 px-1 rounded-sm">FULL</span>}
-                        </div>
-                        <span className="text-[12px] font-bold text-brand-dark tracking-tight leading-tight">{event.type}</span>
-                        <span className="text-[10px] text-brand-dark/70 font-medium leading-tight">{event.instructor} • {event.location}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
+      const adminHeaderContent = (
+        <div className="flex flex-col md:flex-row items-center justify-between w-full">
+          <div className="flex items-center gap-4 mb-4 md:mb-0">
+            <h2 className="text-2xl md:text-[32px] font-bold text-[#3A2A20] tracking-tight">Upcoming Schedule</h2>
+            <span className={`${theme.pillBg} ${theme.pillText} px-3 py-1 rounded-full text-[13px] font-bold`}>{selectedBranch === 'Angeles Branch' ? 'Angeles' : 'San Fernando'}</span>
           </div>
-        );
-      };
-
-      return (
-        <div className="animate-fade-in">
-          {/* Header: Date Carousel */}
-          <div className="flex justify-center items-center gap-12 mb-10 mt-4">
-            <button className="w-10 h-10 rounded-full border border-brand-sand flex items-center justify-center text-brand-dark/50 hover:bg-white shadow-sm"><ChevronLeft size={16} /></button>
-            <div className="flex gap-10">
-              {weekDays.map((d, i) => (
-                <div key={i} className="flex flex-col items-center gap-2">
-                  <span className="text-[11px] font-bold text-brand-dark/60">{d.day}</span>
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shadow-sm transition-colors ${d.active ? 'bg-[#3A2F2A] text-white' : 'text-brand-dark bg-transparent'}`}>
-                    {d.date}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button className="w-10 h-10 rounded-full border border-brand-sand flex items-center justify-center text-brand-dark/50 hover:bg-white shadow-sm"><ChevronRight size={16} /></button>
-          </div>
-
-          {/* Filter Row */}
-          <div className="flex w-full max-w-4xl mx-auto border border-brand-sand/50 rounded-full overflow-hidden divide-x divide-brand-sand/50 bg-transparent mb-12 shadow-sm">
-            {['All categories', 'Location', 'Classes', 'Instructor'].map(filter => (
-              <div key={filter} className="relative flex-1">
-                <select className="w-full appearance-none bg-transparent px-6 py-3.5 pr-10 text-[13px] font-bold text-brand-dark outline-none cursor-pointer hover:bg-black/5 transition-colors">
-                  <option>{filter}</option>
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <ChevronDown size={14} className="text-brand-dark/50" />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-between items-end mb-8">
-            <div>
-              <h2 className="text-3xl font-bold text-brand-dark uppercase tracking-tight mb-2 flex items-center gap-3">
-                Upcoming Schedule
-                <span className="text-sm font-bold text-brand-brown bg-brand-brown/10 px-3 py-1 rounded-full normal-case tracking-normal">
-                  {selectedBranch === 'angeles' ? 'Angeles Branch' : 'San Fernando Branch'}
-                </span>
-              </h2>
-              <p className="text-brand-dark/60 text-sm font-medium">Manage and view your studio schedule</p>
-            </div>
-            <div className="flex gap-4">
-              <div className="bg-white rounded-lg border border-brand-sand/30 flex p-1 shadow-sm">
-                <button 
-                  onClick={() => setScheduleView('calendar')}
-                  className={`px-4 py-1.5 rounded-md flex items-center gap-2 text-sm font-bold transition-colors ${scheduleView === 'calendar' ? 'bg-brand-sand/30 text-brand-dark' : 'text-brand-dark/50 hover:text-brand-dark'}`}
-                >
-                  <Calendar size={16} /> Calendar
-                </button>
-                <button 
-                  onClick={() => setScheduleView('list')}
-                  className={`px-4 py-1.5 rounded-md flex items-center gap-2 text-sm font-bold transition-colors ${scheduleView === 'list' ? 'bg-brand-sand/30 text-brand-dark' : 'text-brand-dark/50 hover:text-brand-dark'}`}
-                >
-                  <LayoutList size={16} /> List
-                </button>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="bg-white rounded-[10px] border border-[#E8E2D9] flex p-1 shadow-sm">
               <button 
-                onClick={() => {
-                  setEditingClass(null);
-                  setIsClassModalOpen(true);
-                }}
-                className="bg-brand-brown text-white px-5 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-brand-dark transition-colors shadow-sm"
+                onClick={() => setScheduleView('calendar')}
+                className={`px-4 py-1.5 rounded-md flex items-center gap-2 text-[13px] font-bold transition-colors ${scheduleView === 'calendar' ? 'bg-[#F5F2ED] text-[#3A2A20]' : 'text-[#3A2A20]/50 hover:text-[#3A2A20]'}`}
               >
-                <Plus size={18} /> Add Class
+                <Calendar size={16} /> Calendar
+              </button>
+              <button 
+                onClick={() => setScheduleView('list')}
+                className={`px-4 py-1.5 rounded-md flex items-center gap-2 text-[13px] font-bold transition-colors ${scheduleView === 'list' ? 'bg-[#F5F2ED] text-[#3A2A20]' : 'text-[#3A2A20]/50 hover:text-[#3A2A20]'}`}
+              >
+                <LayoutList size={16} /> List
               </button>
             </div>
+            <button 
+              onClick={() => {
+                setEditingClass(null);
+                setPrefilledClassData(null);
+                setClassTypeTitle('Reformer Flow');
+                setIsClassModalOpen(true);
+              }}
+              className={`${theme.bg} ${theme.text} ${theme.bgHover} px-5 py-2.5 rounded-[10px] font-bold text-[13px] flex items-center gap-2 transition-colors shadow-sm`}
+            >
+              <Plus size={16} /> Add Class
+            </button>
           </div>
-          
-          {scheduleView === 'list' ? (
-            <div className="flex flex-col gap-4 mt-6">
-              <div className="flex items-center justify-between mb-2 px-2">
-                 <h3 className="text-xl font-bold text-brand-dark">Thu, 20 Aug <span className="text-sm font-medium text-brand-dark/50 ml-2">4 classes</span></h3>
-              </div>
+        </div>
+      );
 
-              {[
-                { time: '09:00am', duration: '50 mins', title: 'REFORMER', location: 'Angeles', available: '8 / 8 left', instructor: 'Coach Chelsea' },
-                { time: '11:00am', duration: '50 mins', title: 'MAT PILATES', location: 'San Fernando', available: '5 / 10 left', instructor: 'Coach Bea' },
-                { time: '03:00pm', duration: '50 mins', title: 'BARRE', location: 'Angeles', available: '2 / 12 left', instructor: 'Coach Chelsea' },
-                { time: '05:00pm', duration: '50 mins', title: 'PRIVATE SESSION', location: 'San Fernando', available: '1 / 1 left', instructor: 'Coach Van' },
-              ].map((cls, idx) => (
-                <div key={idx} className="flex gap-6 items-center group">
-                  <div className="w-20 shrink-0 flex flex-col items-end text-right pr-2">
-                    <span className="font-bold text-brand-dark text-sm">{cls.time}</span>
-                    <span className="text-xs text-brand-dark/50 font-medium">{cls.duration}</span>
-                  </div>
-                  
-                  <div className="flex-1 bg-[#3A2F2A] rounded-[32px] py-5 px-8 flex items-center justify-between shadow-sm">
-                    <div className="w-1/4">
-                      <span className="font-bold text-white tracking-wider text-[15px]">{cls.title}</span>
-                    </div>
-                    <div className="w-1/4">
-                      <span className="font-bold text-white text-[15px]">{cls.location}</span>
-                    </div>
-                    <div className="w-1/4 flex flex-col gap-1">
-                      <div className="flex items-center gap-3">
-                        <button className="w-5 h-5 rounded-full bg-white/10 text-white flex items-center justify-center text-xs hover:bg-white/30 transition-colors">-</button>
-                        <span className="font-bold text-white text-sm">{cls.available}</span>
-                        <button className="w-5 h-5 rounded-full bg-white/10 text-white flex items-center justify-center text-xs hover:bg-white/30 transition-colors">+</button>
-                      </div>
-                      <span className="text-[12px] text-white/60 font-medium pl-8">{cls.instructor}</span>
-                    </div>
-                    <div className="flex gap-3 shrink-0">
-                      <button className="bg-[#FAF7F2] text-brand-dark px-6 py-2.5 rounded-full text-[13px] font-bold hover:bg-white transition-colors shadow-sm">Book User</button>
-                      <button className="bg-white/10 text-white p-2.5 rounded-full hover:bg-white/20 transition-colors"><Edit3 size={16}/></button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            renderCalendar()
-          )}
+      return (
+        <div className="animate-fade-in -mx-4 sm:-mx-6 lg:-mx-12 mt-[-30px]">
+          <ClassScheduleGrid 
+            hideTitle={true} 
+            adminHeader={adminHeaderContent} 
+            branch={selectedBranch}
+            refreshKey={refreshKey}
+            view={scheduleView}
+            onClassClick={(cls) => {
+              setEditingClass(cls);
+              setPrefilledClassData(null);
+              setClassTypeTitle(cls.title || 'Reformer Flow');
+              setModalStartTime(cls.time);
+              
+              let [timePart, modifier] = cls.time.split(' ');
+              let [hours, minutes] = timePart.split(':');
+              if (hours === '12') hours = '00';
+              if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
+              const startMins = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
+              const durMins = parseInt(cls.duration?.replace(' min', '') || '50', 10);
+              const endMins = startMins + durMins;
+              let eH = Math.floor(endMins / 60);
+              const eM = endMins % 60;
+              const eAmPm = eH >= 12 && eH < 24 ? 'PM' : 'AM';
+              eH = eH % 12 || 12;
+              setModalEndTime(`${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')} ${eAmPm}`);
+
+              setIsClassModalOpen(true);
+            }}
+            onEmptySlotClick={(dateId, time) => {
+              setEditingClass(null);
+              setClassTypeTitle('Reformer Flow');
+              const d = new Date(dateId);
+              // Adjust for local timezone to ensure YYYY-MM-DD is correct
+              const date = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+              
+              setModalStartTime(time);
+              let [timePart, modifier] = time.split(' ');
+              let [hours, minutes] = timePart.split(':');
+              if (hours === '12') hours = '00';
+              if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
+              const startMins = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
+              const endMins = startMins + 50;
+              let eH = Math.floor(endMins / 60);
+              const eM = endMins % 60;
+              const eAmPm = eH >= 12 && eH < 24 ? 'PM' : 'AM';
+              eH = eH % 12 || 12;
+              setModalEndTime(`${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')} ${eAmPm}`);
+
+              setPrefilledClassData({ date });
+              setIsClassModalOpen(true);
+            }}
+          />
         </div>
       );
     }
 
+
     if (activeTab === 'users') {
+      let filteredClients = clientsData.filter(client => {
+        const matchesSearch = client.name.toLowerCase().includes(clientSearch.toLowerCase()) || client.email.toLowerCase().includes(clientSearch.toLowerCase());
+        const matchesFilter = clientFilter === 'All Packages' || client.pkg === clientFilter;
+        return matchesSearch && matchesFilter;
+      });
+
+      filteredClients.sort((a, b) => {
+        let valA = a[clientSort];
+        let valB = b[clientSort];
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return clientSortDir === 'asc' ? -1 : 1;
+        if (valA > valB) return clientSortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      const handleSort = (key) => {
+        if (clientSort === key) {
+          setClientSortDir(clientSortDir === 'asc' ? 'desc' : 'asc');
+        } else {
+          setClientSort(key);
+          setClientSortDir('asc');
+        }
+      };
+
+      const SortIcon = ({ column }) => {
+        if (clientSort !== column) return null;
+        return clientSortDir === 'asc' ? <ArrowUp size={14} className="inline ml-1" /> : <ArrowDown size={14} className="inline ml-1" />;
+      };
+
       return (
         <div className="animate-fade-in">
-          <h2 className="text-3xl font-bold text-brand-dark mb-8">Client Directory</h2>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+            <h2 className="text-3xl font-bold text-brand-dark">Client Directory</h2>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div className="relative w-full sm:w-64">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/40" />
+                <input 
+                  type="text" 
+                  placeholder="Search clients..." 
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  className="w-full bg-white border border-brand-sand/50 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-brand-brown text-sm font-medium"
+                />
+              </div>
+              <div className="relative w-full sm:w-auto bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-20">
+                <CustomDropdown
+                  value={clientFilter === 'All' ? 'All Packages' : clientFilter}
+                  onChange={setClientFilter}
+                  options={['All Packages', '10-Class Reformer', '5-Class Mat', 'Drop-in']}
+                  triggerClassName="px-4 py-2"
+                />
+              </div>
+            </div>
+          </div>
           
-          <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 overflow-hidden overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="bg-brand-sand/10 border-b border-brand-sand/50">
-                  <th className="py-4 px-6 font-bold text-brand-dark text-sm">Client Name</th>
-                  <th className="py-4 px-6 font-bold text-brand-dark text-sm">Email</th>
-                  <th className="py-4 px-6 font-bold text-brand-dark text-sm">Active Package</th>
-                  <th className="py-4 px-6 font-bold text-brand-dark text-sm">Credits</th>
+                  <th className="py-4 px-6 font-bold text-brand-dark text-sm cursor-pointer hover:bg-black/5" onClick={() => handleSort('name')}>
+                    Client Name <SortIcon column="name" />
+                  </th>
+                  <th className="py-4 px-6 font-bold text-brand-dark text-sm cursor-pointer hover:bg-black/5" onClick={() => handleSort('email')}>
+                    Email <SortIcon column="email" />
+                  </th>
+                  <th className="py-4 px-6 font-bold text-brand-dark text-sm cursor-pointer hover:bg-black/5" onClick={() => handleSort('pkg')}>
+                    Active Package <SortIcon column="pkg" />
+                  </th>
                   <th className="py-4 px-6 font-bold text-brand-dark text-sm text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {[
-                  { name: 'Graciella Jimenez', email: 'graciellamher@gmail.com', pkg: '10-Class Reformer', credits: '4' },
-                  { name: 'John Doe', email: 'john@example.com', pkg: '5-Class Mat', credits: '1' },
-                  { name: 'Jane Smith', email: 'jane@example.com', pkg: 'Drop-in', credits: '0' },
-                ].map((user, idx) => (
+                {filteredClients.length > 0 ? filteredClients.map((user, idx) => (
                   <tr key={idx} className="border-b border-brand-sand/20 hover:bg-black/5 transition-colors">
                     <td className="py-4 px-6 font-bold text-brand-dark text-sm">{user.name}</td>
                     <td className="py-4 px-6 text-brand-dark text-sm">{user.email}</td>
                     <td className="py-4 px-6 text-brand-dark text-sm">
                       {user.pkg !== 'Drop-in' ? <span className="bg-brand-sand/30 px-2 py-1 rounded text-xs font-bold">{user.pkg}</span> : <span className="text-xs opacity-50">None</span>}
                     </td>
-                    <td className="py-4 px-6 text-brand-dark text-sm font-mono">{user.credits}</td>
                     <td className="py-4 px-6 text-right">
                       <button className="text-brand-brown hover:underline text-sm font-bold">View Profile</button>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan="5" className="py-8 text-center text-brand-dark/50 font-medium">No clients found matching your search.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -425,14 +411,41 @@ export default function AdminDashboard() {
                 <input type="text" defaultValue="0917 123 4567" className="w-full border border-brand-sand/50 rounded-lg px-4 py-2 focus:outline-none focus:border-brand-brown" />
               </div>
               <div>
+                <label className="block text-sm font-bold text-brand-dark mb-2">GCash QR Code</label>
+                <div className="border-2 border-dashed border-brand-sand/50 rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-black/5 transition-colors cursor-pointer group">
+                  <div className="w-12 h-12 rounded-full bg-brand-brown/10 text-brand-brown flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <ImageIcon size={24} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-brand-dark">Click to upload QR code</p>
+                    <p className="text-xs text-brand-dark/50 mt-1">PNG, JPG up to 5MB</p>
+                  </div>
+                  <input type="file" className="hidden" accept="image/*" />
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-bold text-brand-dark mb-2">BPI Account Number</label>
                 <input type="text" defaultValue="1234 5678 90" className="w-full border border-brand-sand/50 rounded-lg px-4 py-2 focus:outline-none focus:border-brand-brown" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-brand-dark mb-2">BPI QR Code</label>
+                <div className="border-2 border-dashed border-brand-sand/50 rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-black/5 transition-colors cursor-pointer group">
+                  <div className="w-12 h-12 rounded-full bg-brand-brown/10 text-brand-brown flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <ImageIcon size={24} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-brand-dark">Click to upload QR code</p>
+                    <p className="text-xs text-brand-dark/50 mt-1">PNG, JPG up to 5MB</p>
+                  </div>
+                  <input type="file" className="hidden" accept="image/*" />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-bold text-brand-dark mb-2">Account Name</label>
                 <input type="text" defaultValue="Revive Pilates Studio" className="w-full border border-brand-sand/50 rounded-lg px-4 py-2 focus:outline-none focus:border-brand-brown" />
               </div>
-              <button className="bg-brand-brown text-white px-6 py-2 rounded-lg font-bold hover:bg-brand-dark transition-colors">Save Changes</button>
+              <button className={`${theme.bg} ${theme.text} ${theme.bgHover} px-6 py-2 rounded-lg font-bold transition-colors`}>Save Changes</button>
+
             </div>
           </div>
         </div>
@@ -444,7 +457,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] font-sans pt-[90px]">
-      <Navbar />
+      <Navbar adminTheme={isAngeles ? 'dark' : 'light'} />
       
       <div className="flex flex-col lg:flex-row min-h-[calc(100vh-90px)] max-w-7xl mx-auto w-full border-x border-brand-sand/30 bg-white">
         
@@ -452,14 +465,14 @@ export default function AdminDashboard() {
         <aside className="w-full lg:w-[320px] bg-white border-b lg:border-b-0 lg:border-r border-brand-sand/30 flex flex-col shrink-0">
           <div className="p-8 pb-4">
             <h2 className="text-2xl font-bold text-brand-dark mb-4">Studio Admin</h2>
-            <select 
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              className="w-full bg-brand-sand/10 border border-brand-sand/30 rounded-lg px-3 py-2 text-sm font-bold text-brand-dark outline-none cursor-pointer hover:border-brand-brown/50 transition-colors"
-            >
-              <option value="angeles">Angeles Branch</option>
-              <option value="san_fernando">San Fernando Branch</option>
-            </select>
+            <div className={`rounded-lg transition-colors z-50 ${theme.bg} ${theme.text}`}>
+              <CustomDropdown
+                value={selectedBranch}
+                onChange={setSelectedBranch}
+                options={['Angeles Branch', 'San Fernando Branch']}
+                triggerClassName="px-4 py-2"
+              />
+            </div>
           </div>
           
           <nav className="flex-1 py-4 flex flex-row lg:flex-col overflow-x-auto scrollbar-hide gap-2">
@@ -469,11 +482,11 @@ export default function AdminDashboard() {
                 onClick={() => setActiveTab(item.id)}
                 className={`flex-none flex items-center gap-4 px-6 lg:px-8 py-3.5 transition-colors text-left border-b-2 lg:border-b-0 lg:border-l-4 ${
                   activeTab === item.id 
-                    ? 'bg-brand-sand/10 border-brand-brown text-brand-dark font-bold' 
+                    ? `${theme.pillBg} ${theme.border} text-brand-dark font-bold` 
                     : 'border-transparent text-brand-dark/60 hover:bg-black/5 hover:text-brand-dark'
                 }`}
               >
-                <item.icon size={20} className={activeTab === item.id ? 'text-brand-brown' : 'text-brand-dark/40'} />
+                <item.icon size={20} className={activeTab === item.id ? theme.pillText : 'text-brand-dark/40'} />
                 <span className="text-sm whitespace-nowrap">{item.label}</span>
               </button>
             ))}
@@ -491,59 +504,60 @@ export default function AdminDashboard() {
       {/* Verification Modal */}
       {selectedBooking && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row">
             
-            {/* Receipt Image Side */}
-            <div className="w-full md:w-1/2 bg-black/5 flex items-center justify-center p-6 border-b md:border-b-0 md:border-r border-brand-sand/30 h-64 md:h-auto">
+            {/* Receipt Image Side (Edge-to-Edge) */}
+            <div className="w-full md:w-1/2 h-64 md:h-auto">
               <img 
                 src={selectedBooking.receiptUrl} 
                 alt="Payment Receipt" 
-                className="max-w-full max-h-full object-contain rounded shadow-md"
+                className="w-full h-full object-cover"
               />
             </div>
             
             {/* Details & Actions Side */}
-            <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col overflow-y-auto">
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-2xl font-bold text-brand-dark">Verify Payment</h3>
-                <button onClick={() => setSelectedBooking(null)} className="text-brand-dark/40 hover:text-brand-dark">
-                  <XCircle size={24} />
+            <div className="w-full md:w-1/2 p-8 flex flex-col overflow-y-auto">
+              <div className="flex justify-between items-start mb-8">
+                <h3 className="text-xl font-bold text-[#1C2C39]">Verify Payment</h3>
+                <button onClick={() => setSelectedBooking(null)} className="text-[#1C2C39]/40 hover:text-[#1C2C39] transition-colors">
+                  <XCircle size={20} />
                 </button>
               </div>
 
-              <div className="space-y-4 flex-1">
+              <div className="space-y-5 flex-1">
                 <div>
-                  <p className="text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-1">Booking ID</p>
-                  <p className="font-medium text-brand-dark">{selectedBooking.id}</p>
+                  <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Booking ID</p>
+                  <p className="text-sm font-medium text-[#1C2C39]">{selectedBooking.id}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-1">Client</p>
-                  <p className="font-medium text-brand-dark">{selectedBooking.clientName}</p>
+                  <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Client</p>
+                  <p className="text-sm font-medium text-[#1C2C39]">{selectedBooking.clientName}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-1">Class</p>
-                  <p className="font-medium text-brand-dark">{selectedBooking.className}</p>
-                  <p className="text-sm text-brand-dark/70">{selectedBooking.date} • {selectedBooking.time}</p>
+                  <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Class</p>
+                  <p className="text-sm font-medium text-[#1C2C39]">{selectedBooking.className}</p>
+                  <p className="text-[13px] text-[#1C2C39]/60 mt-0.5">{selectedBooking.date} • {selectedBooking.time}</p>
                 </div>
-                <div className="bg-[#FAF7F2] p-4 rounded-xl border border-brand-sand/50 mt-4">
-                  <p className="text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-1">Amount Due</p>
-                  <p className="text-xl font-bold text-brand-dark mb-4">{selectedBooking.amount}</p>
+                
+                <div className="bg-[#FAF7F2] p-5 rounded-[12px] border border-[#E8E2D9] mt-6">
+                  <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Amount Due</p>
+                  <p className="text-xl font-bold text-[#1C2C39] mb-4">{selectedBooking.amount}</p>
                   
-                  <p className="text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-1">Submitted Ref No.</p>
-                  <p className="font-mono font-bold text-lg text-brand-dark">{selectedBooking.referenceId}</p>
+                  <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Submitted Ref No.</p>
+                  <p className="font-mono font-bold text-[#1C2C39]">{selectedBooking.referenceId}</p>
                 </div>
               </div>
 
-              <div className="mt-8 flex gap-4 pt-4 border-t border-brand-sand/30">
+              <div className="mt-8 flex gap-3 pt-6 border-t border-[#E8E2D9]">
                 <button 
                   onClick={() => handleReject(selectedBooking.id)}
-                  className="flex-1 py-3 rounded-xl border-2 border-red-200 text-red-600 font-bold hover:bg-red-50 transition-colors"
+                  className="flex-1 py-3.5 rounded-[10px] border border-[#ffb3b3] text-[#E02424] font-bold text-[13px] hover:bg-[#fff5f5] transition-colors"
                 >
                   Reject
                 </button>
                 <button 
                   onClick={() => handleConfirm(selectedBooking.id)}
-                  className="flex-1 py-3 rounded-xl bg-brand-brown text-white font-bold hover:bg-brand-dark transition-colors shadow-sm"
+                  className={`flex-1 py-3.5 rounded-[10px] ${theme.bg} ${theme.text} ${theme.bgHover} font-bold text-[13px] transition-colors shadow-sm`}
                 >
                   Confirm Booking
                 </button>
@@ -557,99 +571,160 @@ export default function AdminDashboard() {
       {/* Class Form Modal */}
       {isClassModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="p-6 md:p-8">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.target);
+              const parseAmPmToMins = (timeString) => {
+                let [timePart, modifier] = timeString.split(' ');
+                let [hours, minutes] = timePart.split(':');
+                if (hours === '12') hours = '00';
+                if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
+                return parseInt(hours, 10) * 60 + parseInt(minutes, 10);
+              };
+
+              let sMins = parseAmPmToMins(modalStartTime);
+              let eMins = parseAmPmToMins(modalEndTime);
+              let durationMins = eMins - sMins;
+              if (durationMins <= 0) durationMins += 24 * 60; // handle wrap around midnight
+
+              let timeStr = modalStartTime;
+              
+              const [y, m, d] = formData.get('date').split('-');
+              const localDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+              
+              const newClass = {
+                title: classTypeTitle,
+                time: timeStr,
+                dateId: localDate.toDateString(),
+                instructor: formData.get('instructor'),
+                branch: selectedBranch === 'Angeles Branch' ? 'Angeles' : 'San Fernando',
+                duration: `${durationMins} min`,
+                capacity: parseInt(formData.get('capacity') || '12', 10),
+                isFull: editingClass ? editingClass.isFull : false,
+                isEmpty: editingClass ? editingClass.isEmpty : true,
+                isDone: editingClass ? editingClass.isDone : false
+              };
+            
+              try {
+                const method = editingClass ? 'PATCH' : 'POST';
+                const url = editingClass 
+                  ? `http://localhost:3000/api/classes/${editingClass.id}`
+                  : 'http://localhost:3000/api/classes';
+
+                await fetch(url, {
+                  method,
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(newClass)
+                });
+                setIsClassModalOpen(false);
+                setRefreshKey(prev => prev + 1);
+              } catch (error) {
+                console.error("Failed to add class:", error);
+              }
+            }} className="p-6 md:p-8">
               <div className="flex justify-between items-start mb-8">
                 <h3 className="text-2xl font-bold text-brand-dark">{editingClass ? 'Edit Class' : 'Add New Class'}</h3>
-                <button onClick={() => setIsClassModalOpen(false)} className="text-brand-dark/40 hover:text-brand-dark transition-colors">
+                <button type="button" onClick={() => setIsClassModalOpen(false)} className="text-brand-dark/40 hover:text-brand-dark transition-colors">
                   <XCircle size={24} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Left Column: Basic Details */}
-                <div className="space-y-5">
+              <div className="space-y-5">
                   <div>
                     <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Class Name</label>
-                    <input type="text" defaultValue={editingClass?.type || ''} className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium" placeholder="e.g. ABC Reformer" />
+                    <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-40 relative">
+                      <CustomDropdown
+                        value={classTypeTitle}
+                        onChange={setClassTypeTitle}
+                        options={['Reformer Flow', 'Mat Pilates', 'Barre']}
+                        triggerClassName="px-4 py-3"
+                      />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Date</label>
-                      <input type="date" className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium text-sm" />
+                      <input name="date" required type="date" defaultValue={
+                        editingClass?.dateId ? new Date(new Date(editingClass.dateId).getTime() - (new Date(editingClass.dateId).getTimezoneOffset() * 60000)).toISOString().split('T')[0] : prefilledClassData?.date || ''
+                      } className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium text-sm" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Time</label>
-                      <input type="time" className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium text-sm" />
+                      <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Start Time</label>
+                      <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-40 relative">
+                        <CustomDropdown
+                          value={modalStartTime}
+                          onChange={(val) => {
+                             setModalStartTime(val);
+                             // Auto update end time to +50 mins
+                             let [timePart, modifier] = val.split(' ');
+                             let [hours, minutes] = timePart.split(':');
+                             if (hours === '12') hours = '00';
+                             if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
+                             const startMins = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
+                             const endMins = startMins + 50;
+                             let eH = Math.floor(endMins / 60);
+                             const eM = endMins % 60;
+                             const eAmPm = eH >= 12 && eH < 24 ? 'PM' : 'AM';
+                             eH = eH % 12 || 12;
+                             setModalEndTime(`${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')} ${eAmPm}`);
+                          }}
+                          options={TIME_OPTIONS}
+                          triggerClassName="px-4 py-3"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">End Time</label>
+                      <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-30 relative">
+                        <CustomDropdown
+                          value={modalEndTime}
+                          onChange={setModalEndTime}
+                          options={TIME_OPTIONS}
+                          triggerClassName="px-4 py-3"
+                        />
+                      </div>
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Instructor</label>
-                    <input type="text" defaultValue={editingClass?.instructor || ''} className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium" placeholder="Instructor Name" />
+                    <input name="instructor" required type="text" defaultValue={editingClass?.instructor || ''} className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium" placeholder="Coach Name" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Experience Level</label>
-                      <select className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium text-sm bg-white">
-                        <option>Beginner</option>
-                        <option>Intermediate</option>
-                        <option>Advanced</option>
-                        <option>All Levels</option>
-                      </select>
+                      <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-30 relative">
+                        <CustomDropdown
+                          value={experienceLevel}
+                          onChange={setExperienceLevel}
+                          options={['Beginner', 'Intermediate', 'Advanced', 'All Levels']}
+                          triggerClassName="px-4 py-3"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Capacity</label>
-                      <input type="number" defaultValue="12" className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium" />
+                      <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Capacity (Slots Available)</label>
+                      <input name="capacity" type="number" defaultValue="12" className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium" />
                     </div>
                   </div>
-                </div>
-
-                {/* Right Column: Rules & Media */}
-                <div className="space-y-5">
-                  <div className="bg-[#FAF7F2] p-5 rounded-xl border border-brand-sand/50 space-y-4">
-                    <h4 className="font-bold text-brand-dark mb-2 text-sm border-b border-brand-sand/50 pb-2">Booking Rules</h4>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-brand-dark/70">Booking ahead (days)</span>
-                      <input type="number" defaultValue="7" className="w-20 border border-brand-sand/50 rounded-lg px-3 py-1.5 focus:outline-none focus:border-brand-brown text-center font-bold" />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-brand-dark/70">Cancel before (hours)</span>
-                      <input type="number" defaultValue="6" className="w-20 border border-brand-sand/50 rounded-lg px-3 py-1.5 focus:outline-none focus:border-brand-brown text-center font-bold" />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-brand-dark/70">Close before start (hrs)</span>
-                      <input type="number" defaultValue="2" className="w-20 border border-brand-sand/50 rounded-lg px-3 py-1.5 focus:outline-none focus:border-brand-brown text-center font-bold" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Class Cover Image</label>
-                    <div className="border-2 border-dashed border-brand-sand rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-[#FAF7F2] transition-colors">
-                      <div className="bg-brand-sand/30 p-3 rounded-full mb-3">
-                        <Plus size={24} className="text-brand-dark/50" />
-                      </div>
-                      <p className="text-sm font-bold text-brand-dark">Click to upload image</p>
-                      <p className="text-xs text-brand-dark/50 mt-1">PNG, JPG up to 5MB</p>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               <div className="mt-8 pt-6 border-t border-brand-sand/30 flex justify-end gap-4">
                 <button 
+                  type="button"
                   onClick={() => setIsClassModalOpen(false)}
                   className="px-6 py-3 rounded-xl font-bold text-brand-dark hover:bg-black/5 transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
-                  onClick={() => setIsClassModalOpen(false)}
-                  className="px-8 py-3 rounded-xl bg-brand-brown text-white font-bold hover:bg-brand-dark transition-colors shadow-sm"
+                  type="submit"
+                  className={`px-8 py-3 rounded-xl ${theme.bg} ${theme.text} ${theme.bgHover} font-bold transition-colors shadow-sm`}
                 >
                   {editingClass ? 'Save Changes' : 'Create Class'}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}

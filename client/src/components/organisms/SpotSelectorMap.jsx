@@ -3,13 +3,13 @@ import { useState } from 'react';
 export default function SpotSelectorMap({ classType = 'reformer' }) {
   const [selectedSpot, setSelectedSpot] = useState(null);
 
-  // 10 spots for Mat/Barre, 5 for Reformer
-  const spotCount = classType === 'reformer' ? 5 : 10;
+  // 10 spots for Mat/Barre, 4 for Reformer
+  const spotCount = classType === 'reformer' ? 4 : 10;
   
   const spots = Array.from({ length: spotCount }, (_, i) => ({
     id: i + 1,
     label: `S${i + 1}`,
-    isAvailable: i !== 2 && i !== 7, // Spots 3 and 8 are taken
+    isAvailable: i !== 2, // Spot 3 is taken
   }));
 
   // Render shapes based on classType
@@ -46,23 +46,28 @@ export default function SpotSelectorMap({ classType = 'reformer' }) {
       );
     }
 
-    // Default Reformer shape (Larger since there's only 5)
+    // Default Reformer shape (Highly detailed based on user image)
     return (
-      <div className={`relative w-12 h-32 rounded-md shadow-md transition-colors duration-300 border border-white/20
-        ${isSelected ? 'bg-brand-dark' : isAvailable ? 'bg-[#D8CFC4] group-hover:bg-[#C8BFA4]' : 'bg-[#D4DAD5]'}
+      <div className={`relative w-12 h-36 rounded-2xl shadow-md transition-colors duration-300 flex flex-col items-center justify-center border border-white/40
+        ${isSelected ? 'bg-[#D8CFC4] ring-2 ring-brand-dark' : isAvailable ? 'bg-[#EBE7DF] group-hover:bg-[#D8CFC4]' : 'bg-[#D4DAD5] opacity-50'}
       `}>
-        <div className={`absolute top-3 left-1/2 -translate-x-1/2 w-9 h-16 rounded transition-colors duration-300 shadow-sm
-          ${isSelected ? 'bg-[#5C4533]' : isAvailable ? 'bg-[#F5F2ED]' : 'bg-[#EBE7DF]'}
+        {/* Top U-Bar (Silver) */}
+        <div className="absolute -top-3 w-14 h-5 border-b-0 border-[3px] border-gray-400 rounded-t-lg shadow-sm"></div>
+        
+        {/* Carriage (Dark Pad) */}
+        <div className={`absolute top-5 w-[85%] h-[60%] rounded shadow-inner flex flex-col items-center overflow-hidden
+          ${isSelected ? 'bg-[#3A2A20]' : isAvailable ? 'bg-[#43484D]' : 'bg-gray-400'}
         `}>
-          <div className="absolute top-1.5 left-1 w-2 h-2.5 bg-black/10 rounded-sm"></div>
-          <div className="absolute top-1.5 right-1 w-2 h-2.5 bg-black/10 rounded-sm"></div>
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-2 bg-black/5 rounded-full"></div>
+          {/* Shoulder Rests */}
+          <div className="absolute top-2 left-1.5 w-2 h-3.5 bg-[#2A2D30] rounded-sm"></div>
+          <div className="absolute top-2 right-1.5 w-2 h-3.5 bg-[#2A2D30] rounded-sm"></div>
+          
+          {/* Headrest divider line */}
+          <div className="absolute top-8 w-full h-[2px] bg-black/20"></div>
         </div>
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-9 h-1 bg-black/20 rounded-full"></div>
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1">
-           <div className="w-0.5 h-2 bg-black/10"></div>
-           <div className="w-0.5 h-2 bg-black/10"></div>
-        </div>
+
+        {/* Bottom Bar (Black) */}
+        <div className="absolute bottom-2 w-10 h-3.5 border-t-0 border-[3px] border-[#2A2D30] rounded-b-md"></div>
       </div>
     );
   };
