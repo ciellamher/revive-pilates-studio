@@ -4,17 +4,29 @@ A full-stack web application designed for boutique pilates studios to manage cla
 
 Live site: [https://ciellamher.github.io/revive-pilates-studio/](https://ciellamher.github.io/revive-pilates-studio/)
 
-> This deployment is currently running a frontend-only build. The interface is real, but the backend data is mocked in the browser. 
+> This deployment includes a functional backend using Node.js and Express. Some backend data is still using mock arrays for demonstration purposes, but the client-server architecture is in place.
 
 ## Features and Usage
 
 The application supports the primary flow of a client discovering the studio and booking a class:
 - **Discover & Explore:** Users can view the home page, read about class types (Pilates page), and browse membership options (Pricing page).
-- **Authentication:** Clients can Register for a new account or Login to an existing one.
+- **Authentication:** Clients can Register for a new account or Login to an existing one securely via a passwordless Magic Link (using JWT and Nodemailer).
 - **Interactive Booking:** Users can view the weekly schedule, choose a specific class, and interactively select their spot (e.g., Reformer #3) in the studio.
 - **Checkout:** A simulated checkout flow for purchasing class packages.
 - **Client Dashboard:** Users can view their upcoming and past bookings.
 - **Admin Dashboard:** Studio administrators can view schedules, manage classes, and see who is booked for each spot.
+
+### API Endpoints
+The backend provides the following REST API endpoints:
+- `GET /api/users` - Fetch user list (mocked).
+- `GET /api/classes` - Fetch class schedule.
+- `POST /api/classes` - Add a new class.
+- `PATCH /api/classes/:id` - Update class details.
+- `GET /api/bookings` - Fetch bookings.
+- `POST /api/bookings` - Create a booking.
+- `PATCH /api/bookings/:id` - Update booking status.
+- `POST /api/auth/login` - Request a magic link for login.
+- `GET /api/auth/verify` - Verify magic link token and retrieve user profile.
 
 ## Setup and Installation
 
@@ -104,14 +116,13 @@ Open `http://localhost:5173` in your browser. You should see the Revive Pilates 
 ## Known issues and next steps
 
 **Known Issues:**
-- The frontend currently relies heavily on complex mocked data state. Managing this mock state for the `AdminDashboard` and `Booking` flows can sometimes lead to synchronization bugs if refreshed.
+- The frontend is now connected to the backend API, but the database connection for PostgreSQL queries is still pending. The backend currently holds state in memory (mock arrays) which resets upon server restart.
 - Checkout process is visual only and does not process real payments.
+- Nodemailer uses Ethereal email for development testing; real emails are not sent, but rather printed to the server console as preview links.
 
 **Next Steps:**
-- Complete the Node.js/Express backend implementation.
-- Connect the frontend pages to real API endpoints, removing the mock data.
-- Implement real JWT/Session-based authentication for the Login and Register flows.
-- Connect and query the actual PostgreSQL database for class schedules.
+- Connect and query the actual PostgreSQL database for users, classes, and bookings instead of using in-memory mock data.
+- Ensure state persistence across server restarts.
 
 ## Author
 
