@@ -2,21 +2,28 @@ import { useState, useEffect } from 'react';
 import Navbar from '../components/organisms/Navbar';
 import ClassScheduleGrid from '../components/organisms/ClassScheduleGrid';
 import CustomDropdown from '../components/atoms/CustomDropdown';
-import { Calendar, Users, ClipboardCheck, Settings, CheckCircle, XCircle, Plus, Edit3, LayoutList, ChevronLeft, ChevronRight, ChevronDown, Search, ArrowUp, ArrowDown, Filter, Upload, Image as ImageIcon } from 'lucide-react';
+import { Calendar, Users, UserCheck, ClipboardCheck, Settings, CheckCircle, XCircle, Plus, Minus, Edit3, LayoutList, ChevronLeft, ChevronRight, ChevronDown, Search, ArrowUp, ArrowDown, Filter, Upload, Image as ImageIcon } from 'lucide-react';
+import AdminCoaches from '../components/organisms/AdminCoaches';
+import { apiFetch } from '../api/base';
 
-const TIME_OPTIONS = (() => {
+// Every half hour from 8:00 AM to 8:00 PM. The schedule grid only has
+// half-hour rows, so a class at any other minute would not show up on it.
+const HALF_HOUR_TIMES = (() => {
   const times = [];
-  for (let h = 8; h <= 19; h++) {
-    for (let m = 0; m < 60; m += 10) {
-      if (h === 19 && m > 0) break;
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      let hh = h % 12;
-      if (hh === 0) hh = 12;
-      times.push(`${hh.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`);
-    }
+  for (let mins = 8 * 60; mins <= 20 * 60; mins += 30) {
+    const h = Math.floor(mins / 60);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hh = h % 12 || 12;
+    times.push(`${hh.toString().padStart(2, '0')}:${(mins % 60).toString().padStart(2, '0')} ${ampm}`);
   }
   return times;
 })();
+const START_TIME_OPTIONS = HALF_HOUR_TIMES.slice(0, -2); // last start is 7:00 PM
+const END_TIME_OPTIONS = HALF_HOUR_TIMES.slice(1);
+
+// Slots a class starts with when the admin picks its type. Still editable.
+const DEFAULT_CAPACITY = { 'Reformer Flow': 4, 'Mat Pilates': 10, 'Barre': 10 };
+const MAX_CAPACITY = 50;
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('pending');
@@ -27,19 +34,21 @@ export default function AdminDashboard() {
   const [classTypeTitle, setClassTypeTitle] = useState('Reformer Flow');
   const [experienceLevel, setExperienceLevel] = useState('Beginner');
   const [modalStartTime, setModalStartTime] = useState('08:00 AM');
-  const [modalEndTime, setModalEndTime] = useState('08:50 AM');
+  const [modalEndTime, setModalEndTime] = useState('09:00 AM');
+  const [capacity, setCapacity] = useState(DEFAULT_CAPACITY['Reformer Flow']);
+  const [coachId, setCoachId] = useState('');
+  const [classFormError, setClassFormError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   
   // Clients state
   const [clientSearch, setClientSearch] = useState('');
-  const [clientFilter, setClientFilter] = useState('All');
   const [clientSort, setClientSort] = useState('name');
   const [clientSortDir, setClientSortDir] = useState('asc');
 
   const [clientsData, setClientsData] = useState([]);
 
   useEffect(() => {
-    fetch('http://localhost:3000/api/users')
+    apiFetch('/api/users')
       .then(res => res.json())
       .then(data => {
         if (data.users) setClientsData(data.users);
@@ -50,6 +59,25 @@ export default function AdminDashboard() {
   const [selectedBranch, setSelectedBranch] = useState('Angeles Branch');
   
   const isAngeles = selectedBranch === 'Angeles Branch';
+  const branchName = isAngeles ? 'Angeles' : 'San Fernando';
+
+  const [coaches, setCoaches] = useState([]);
+
+  const fetchCoaches = () => {
+    apiFetch('/api/coaches')
+      .then(res => res.json())
+      .then(data => {
+        if (data.coaches) setCoaches(data.coaches);
+      })
+      .catch(err => console.error("Error fetching coaches:", err));
+  };
+
+  useEffect(() => {
+    fetchCoaches();
+  }, []);
+
+  // Only coaches who teach at the branch being managed can be its instructors.
+  const branchCoaches = coaches.filter(coach => coach.branches.includes(branchName));
   
   const theme = {
     bg: isAngeles ? 'bg-[#2A180E]' : 'bg-[#D8CFC4]',
@@ -64,7 +92,7 @@ export default function AdminDashboard() {
   const [pendingBookings, setPendingBookings] = useState([]);
 
   useEffect(() => {
-    fetch('http://localhost:3000/api/bookings')
+    apiFetch('/api/bookings')
       .then(res => res.json())
       .then(data => {
         if (data.bookings) setPendingBookings(data.bookings);
@@ -72,35 +100,63 @@ export default function AdminDashboard() {
       .catch(console.error);
   }, []);
 
-  const handleConfirm = (id) => {
-    fetch(`http://localhost:3000/api/bookings/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'confirmed' })
-    }).then(() => {
+  const [bookingError, setBookingError] = useState('');
+
+  const setBookingStatus = async (id, status) => {
+    setBookingError('');
+    try {
+      const res = await apiFetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Request failed');
       setPendingBookings(prev => prev.map(booking => 
-        booking.id === id ? { ...booking, status: 'confirmed' } : booking
+        booking.id === id ? { ...booking, status } : booking
       ));
       setSelectedBooking(null);
-    });
+      // The booking is confirmed either way; this only says the email did not go out.
+      if (data?.emailed === false) {
+        window.alert('The booking is confirmed, but the confirmation email could not be sent. Please let the client know yourself.');
+      }
+    } catch (error) {
+      console.error("Failed to update booking:", error);
+      setBookingError(`Could not update the booking: ${error.message}`);
+    }
   };
 
-  const handleReject = (id) => {
-    fetch(`http://localhost:3000/api/bookings/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'rejected' })
-    }).then(() => {
-      setPendingBookings(prev => prev.map(booking => 
-        booking.id === id ? { ...booking, status: 'rejected' } : booking
-      ));
-      setSelectedBooking(null);
-    });
+  const handleConfirm = (id) => setBookingStatus(id, 'confirmed');
+  const handleReject = (id) => setBookingStatus(id, 'rejected');
+
+  const changeCapacity = (delta) => {
+    setCapacity(prev => Math.min(MAX_CAPACITY, Math.max(1, (Number(prev) || 0) + delta)));
+  };
+
+  // Cancelling keeps the class on the schedule, marked as cancelled, so clients
+  // who were planning to come can see what happened. It can be restored.
+  const handleSetCancelled = async (isCancelled) => {
+    if (isCancelled && !window.confirm(`Cancel ${editingClass.title} at ${editingClass.time}? Clients will see it as cancelled and will not be able to book it, and everyone already booked will be emailed.`)) {
+      return;
+    }
+    setClassFormError('');
+    try {
+      const res = await apiFetch(`/api/classes/${editingClass.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isCancelled })
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Request failed');
+      setIsClassModalOpen(false);
+      setRefreshKey(prev => prev + 1);
+    } catch (error) {
+      console.error("Failed to update class:", error);
+      setClassFormError(`Could not ${isCancelled ? 'cancel' : 'restore'} the class: ${error.message}`);
+    }
   };
 
   const MENU_ITEMS = [
     { id: 'pending', label: 'Pending Verifications', icon: ClipboardCheck },
     { id: 'schedule', label: 'Manage Schedule', icon: Calendar },
+    { id: 'coaches', label: 'Coaches', icon: UserCheck },
     { id: 'users', label: 'Client Directory', icon: Users },
     { id: 'settings', label: 'Studio Settings', icon: Settings },
   ];
@@ -150,7 +206,7 @@ export default function AdminDashboard() {
                         <td className="py-4 px-6 font-mono text-xs text-brand-dark/80">{booking.referenceId}</td>
                         <td className="py-4 px-6 text-right">
                           <button 
-                            onClick={() => setSelectedBooking(booking)}
+                            onClick={() => { setBookingError(''); setSelectedBooking(booking); }}
                             className={`${theme.bg} ${theme.text} ${theme.bgHover} text-xs font-bold px-4 py-2 rounded-lg transition-colors whitespace-nowrap`}
                           >
                             Verify Receipt
@@ -231,6 +287,9 @@ export default function AdminDashboard() {
                 setEditingClass(null);
                 setPrefilledClassData(null);
                 setClassTypeTitle('Reformer Flow');
+                setCapacity(DEFAULT_CAPACITY['Reformer Flow']);
+                setCoachId(branchCoaches[0]?.id ?? '');
+                setClassFormError('');
                 setIsClassModalOpen(true);
               }}
               className={`${theme.bg} ${theme.text} ${theme.bgHover} px-5 py-2.5 rounded-[10px] font-bold text-[13px] flex items-center gap-2 transition-colors shadow-sm`}
@@ -253,6 +312,9 @@ export default function AdminDashboard() {
               setEditingClass(cls);
               setPrefilledClassData(null);
               setClassTypeTitle(cls.title || 'Reformer Flow');
+              setCapacity(cls.capacity ?? DEFAULT_CAPACITY[cls.title] ?? DEFAULT_CAPACITY['Reformer Flow']);
+              setCoachId(cls.coachId);
+              setClassFormError('');
               setModalStartTime(cls.time);
               
               let [timePart, modifier] = cls.time.split(' ');
@@ -273,6 +335,9 @@ export default function AdminDashboard() {
             onEmptySlotClick={(dateId, time) => {
               setEditingClass(null);
               setClassTypeTitle('Reformer Flow');
+              setCapacity(DEFAULT_CAPACITY['Reformer Flow']);
+              setCoachId(branchCoaches[0]?.id ?? '');
+              setClassFormError('');
               const d = new Date(dateId);
               // Adjust for local timezone to ensure YYYY-MM-DD is correct
               const date = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
@@ -283,7 +348,7 @@ export default function AdminDashboard() {
               if (hours === '12') hours = '00';
               if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
               const startMins = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
-              const endMins = startMins + 50;
+              const endMins = startMins + 60;
               let eH = Math.floor(endMins / 60);
               const eM = endMins % 60;
               const eAmPm = eH >= 12 && eH < 24 ? 'PM' : 'AM';
@@ -299,11 +364,13 @@ export default function AdminDashboard() {
     }
 
 
+    if (activeTab === 'coaches') {
+      return <AdminCoaches coaches={coaches} branch={branchName} theme={theme} onChanged={fetchCoaches} />;
+    }
+
     if (activeTab === 'users') {
       let filteredClients = clientsData.filter(client => {
-        const matchesSearch = client.name.toLowerCase().includes(clientSearch.toLowerCase()) || client.email.toLowerCase().includes(clientSearch.toLowerCase());
-        const matchesFilter = clientFilter === 'All Packages' || client.pkg === clientFilter;
-        return matchesSearch && matchesFilter;
+        return client.name.toLowerCase().includes(clientSearch.toLowerCase()) || client.email.toLowerCase().includes(clientSearch.toLowerCase());
       });
 
       filteredClients.sort((a, b) => {
@@ -347,14 +414,6 @@ export default function AdminDashboard() {
                   className="w-full bg-white border border-brand-sand/50 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-brand-brown text-sm font-medium"
                 />
               </div>
-              <div className="relative w-full sm:w-auto bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-20">
-                <CustomDropdown
-                  value={clientFilter === 'All' ? 'All Packages' : clientFilter}
-                  onChange={setClientFilter}
-                  options={['All Packages', '10-Class Reformer', '5-Class Mat', 'Drop-in']}
-                  triggerClassName="px-4 py-2"
-                />
-              </div>
             </div>
           </div>
           
@@ -368,8 +427,8 @@ export default function AdminDashboard() {
                   <th className="py-4 px-6 font-bold text-brand-dark text-sm cursor-pointer hover:bg-black/5" onClick={() => handleSort('email')}>
                     Email <SortIcon column="email" />
                   </th>
-                  <th className="py-4 px-6 font-bold text-brand-dark text-sm cursor-pointer hover:bg-black/5" onClick={() => handleSort('pkg')}>
-                    Active Package <SortIcon column="pkg" />
+                  <th className="py-4 px-6 font-bold text-brand-dark text-sm cursor-pointer hover:bg-black/5" onClick={() => handleSort('bookings')}>
+                    Bookings <SortIcon column="bookings" />
                   </th>
                   <th className="py-4 px-6 font-bold text-brand-dark text-sm text-right">Action</th>
                 </tr>
@@ -377,11 +436,9 @@ export default function AdminDashboard() {
               <tbody>
                 {filteredClients.length > 0 ? filteredClients.map((user, idx) => (
                   <tr key={idx} className="border-b border-brand-sand/20 hover:bg-black/5 transition-colors">
-                    <td className="py-4 px-6 font-bold text-brand-dark text-sm">{user.name}</td>
+                    <td className="py-4 px-6 font-bold text-brand-dark text-sm">{user.name || <span className="font-normal opacity-50">No name yet</span>}</td>
                     <td className="py-4 px-6 text-brand-dark text-sm">{user.email}</td>
-                    <td className="py-4 px-6 text-brand-dark text-sm">
-                      {user.pkg !== 'Drop-in' ? <span className="bg-brand-sand/30 px-2 py-1 rounded text-xs font-bold">{user.pkg}</span> : <span className="text-xs opacity-50">None</span>}
-                    </td>
+                    <td className="py-4 px-6 text-brand-dark text-sm">{user.bookings}</td>
                     <td className="py-4 px-6 text-right">
                       <button className="text-brand-brown hover:underline text-sm font-bold">View Profile</button>
                     </td>
@@ -508,11 +565,17 @@ export default function AdminDashboard() {
             
             {/* Receipt Image Side (Edge-to-Edge) */}
             <div className="w-full md:w-1/2 h-64 md:h-auto">
-              <img 
-                src={selectedBooking.receiptUrl} 
-                alt="Payment Receipt" 
-                className="w-full h-full object-cover"
-              />
+              {selectedBooking.receiptUrl ? (
+                <img 
+                  src={selectedBooking.receiptUrl} 
+                  alt="Payment Receipt" 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-[#FAF7F2] flex items-center justify-center p-8 text-center text-sm text-[#1C2C39]/60">
+                  No receipt image was uploaded. Check the reference number against your GCash or BPI records.
+                </div>
+              )}
             </div>
             
             {/* Details & Actions Side */}
@@ -532,6 +595,7 @@ export default function AdminDashboard() {
                 <div>
                   <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Client</p>
                   <p className="text-sm font-medium text-[#1C2C39]">{selectedBooking.clientName}</p>
+                  <p className="text-[13px] text-[#1C2C39]/60 mt-0.5 break-all">{selectedBooking.clientEmail}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Class</p>
@@ -547,6 +611,8 @@ export default function AdminDashboard() {
                   <p className="font-mono font-bold text-[#1C2C39]">{selectedBooking.referenceId}</p>
                 </div>
               </div>
+
+              {bookingError && <p role="alert" className="mt-6 text-sm font-medium text-[#E02424]">{bookingError}</p>}
 
               <div className="mt-8 flex gap-3 pt-6 border-t border-[#E8E2D9]">
                 <button 
@@ -589,6 +655,11 @@ export default function AdminDashboard() {
               if (durationMins <= 0) durationMins += 24 * 60; // handle wrap around midnight
 
               let timeStr = modalStartTime;
+
+              if (!coachId) {
+                setClassFormError(`Add a coach for the ${branchName} branch first, under Coaches.`);
+                return;
+              }
               
               const [y, m, d] = formData.get('date').split('-');
               const localDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
@@ -596,11 +667,12 @@ export default function AdminDashboard() {
               const newClass = {
                 title: classTypeTitle,
                 time: timeStr,
+                date: formData.get('date'),
                 dateId: localDate.toDateString(),
-                instructor: formData.get('instructor'),
+                coachId,
                 branch: selectedBranch === 'Angeles Branch' ? 'Angeles' : 'San Fernando',
                 duration: `${durationMins} min`,
-                capacity: parseInt(formData.get('capacity') || '12', 10),
+                capacity: Number(capacity),
                 isFull: editingClass ? editingClass.isFull : false,
                 isEmpty: editingClass ? editingClass.isEmpty : true,
                 isDone: editingClass ? editingClass.isDone : false
@@ -609,18 +681,20 @@ export default function AdminDashboard() {
               try {
                 const method = editingClass ? 'PATCH' : 'POST';
                 const url = editingClass 
-                  ? `http://localhost:3000/api/classes/${editingClass.id}`
-                  : 'http://localhost:3000/api/classes';
+                  ? `/api/classes/${editingClass.id}`
+                  : '/api/classes';
 
-                await fetch(url, {
+                setClassFormError('');
+                const res = await apiFetch(url, {
                   method,
-                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(newClass)
                 });
+                if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Request failed');
                 setIsClassModalOpen(false);
                 setRefreshKey(prev => prev + 1);
               } catch (error) {
-                console.error("Failed to add class:", error);
+                console.error("Failed to save class:", error);
+                setClassFormError(`Could not save the class: ${error.message}`);
               }
             }} className="p-6 md:p-8">
               <div className="flex justify-between items-start mb-8">
@@ -636,7 +710,10 @@ export default function AdminDashboard() {
                     <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-40 relative">
                       <CustomDropdown
                         value={classTypeTitle}
-                        onChange={setClassTypeTitle}
+                        onChange={(title) => {
+                          setClassTypeTitle(title);
+                          setCapacity(DEFAULT_CAPACITY[title]);
+                        }}
                         options={['Reformer Flow', 'Mat Pilates', 'Barre']}
                         triggerClassName="px-4 py-3"
                       />
@@ -656,20 +733,20 @@ export default function AdminDashboard() {
                           value={modalStartTime}
                           onChange={(val) => {
                              setModalStartTime(val);
-                             // Auto update end time to +50 mins
+                             // Auto update end time to +1 hour
                              let [timePart, modifier] = val.split(' ');
                              let [hours, minutes] = timePart.split(':');
                              if (hours === '12') hours = '00';
                              if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
                              const startMins = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
-                             const endMins = startMins + 50;
+                             const endMins = startMins + 60;
                              let eH = Math.floor(endMins / 60);
                              const eM = endMins % 60;
                              const eAmPm = eH >= 12 && eH < 24 ? 'PM' : 'AM';
                              eH = eH % 12 || 12;
                              setModalEndTime(`${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')} ${eAmPm}`);
                           }}
-                          options={TIME_OPTIONS}
+                          options={START_TIME_OPTIONS}
                           triggerClassName="px-4 py-3"
                         />
                       </div>
@@ -680,7 +757,7 @@ export default function AdminDashboard() {
                         <CustomDropdown
                           value={modalEndTime}
                           onChange={setModalEndTime}
-                          options={TIME_OPTIONS}
+                          options={END_TIME_OPTIONS}
                           triggerClassName="px-4 py-3"
                         />
                       </div>
@@ -688,7 +765,21 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Instructor</label>
-                    <input name="instructor" required type="text" defaultValue={editingClass?.instructor || ''} className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium" placeholder="Coach Name" />
+                    {branchCoaches.length === 0 ? (
+                      <p className="border border-dashed border-brand-sand rounded-lg px-4 py-3 text-sm text-brand-dark/60">
+                        No coaches at the {branchName} branch yet. Add one under Coaches first.
+                      </p>
+                    ) : (
+                      <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-[35] relative">
+                        <CustomDropdown
+                          value={branchCoaches.find(coach => coach.id === coachId)?.name}
+                          onChange={(name) => setCoachId(branchCoaches.find(coach => coach.name === name).id)}
+                          options={branchCoaches.map(coach => coach.name)}
+                          placeholder="Choose an instructor"
+                          triggerClassName="px-4 py-3"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -704,18 +795,74 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Capacity (Slots Available)</label>
-                      <input name="capacity" type="number" defaultValue="12" className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium" />
+                      <div className="flex items-stretch border border-brand-sand/50 rounded-lg overflow-hidden focus-within:border-brand-brown">
+                        <button
+                          type="button"
+                          aria-label="Decrease capacity"
+                          onClick={() => changeCapacity(-1)}
+                          disabled={Number(capacity) <= 1}
+                          className="px-3 text-brand-dark hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <input
+                          name="capacity"
+                          type="number"
+                          required
+                          min="1"
+                          max={MAX_CAPACITY}
+                          step="1"
+                          value={capacity}
+                          onChange={(e) => setCapacity(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                          className="w-full min-w-0 text-center py-3 focus:outline-none font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                        <button
+                          type="button"
+                          aria-label="Increase capacity"
+                          onClick={() => changeCapacity(1)}
+                          disabled={Number(capacity) >= MAX_CAPACITY}
+                          className="px-3 text-brand-dark hover:bg-black/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-brand-sand/30 flex justify-end gap-4">
+              {editingClass?.isCancelled && (
+                <p className="mt-6 text-sm font-bold text-[#E02424]">This class is cancelled. Clients see it as cancelled and cannot book it.</p>
+              )}
+              {classFormError && (
+                <p role="alert" className="mt-6 text-sm font-medium text-[#E02424]">{classFormError}</p>
+              )}
+
+              <div className="mt-8 pt-6 border-t border-brand-sand/30 flex flex-wrap justify-end gap-2">
+                {editingClass && (
+                  editingClass.isCancelled ? (
+                    <button
+                      type="button"
+                      onClick={() => handleSetCancelled(false)}
+                      className="mr-auto px-5 py-3 rounded-xl border border-brand-sand font-bold text-brand-dark hover:bg-black/5 transition-colors"
+                    >
+                      Restore Class
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSetCancelled(true)}
+                      className="mr-auto px-5 py-3 rounded-xl border border-[#ffb3b3] text-[#E02424] font-bold hover:bg-[#fff5f5] transition-colors"
+                    >
+                      Cancel Class
+                    </button>
+                  )
+                )}
                 <button 
                   type="button"
                   onClick={() => setIsClassModalOpen(false)}
                   className="px-6 py-3 rounded-xl font-bold text-brand-dark hover:bg-black/5 transition-colors"
                 >
-                  Cancel
+                  {editingClass ? 'Close' : 'Cancel'}
                 </button>
                 <button 
                   type="submit"

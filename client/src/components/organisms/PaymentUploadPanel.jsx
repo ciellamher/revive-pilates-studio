@@ -1,6 +1,6 @@
 import { UploadCloud } from 'lucide-react';
 
-export default function PaymentUploadPanel() {
+export default function PaymentUploadPanel({ referenceId = '', onReferenceChange = () => {}, onSubmit = () => {}, submitting = false, error = '' }) {
   return (
     <div className="bg-white rounded-2xl p-6 border border-brand-sand/30 shadow-sm space-y-6">
       <h3 className="font-serif text-2xl font-bold text-brand-dark">Payment Details</h3>
@@ -40,7 +40,18 @@ export default function PaymentUploadPanel() {
       </div>
 
       <div className="space-y-4 pt-4 border-t border-brand-sand/30">
-
+        <div>
+          <label htmlFor="payment-reference" className="block text-sm font-semibold text-brand-dark mb-2">Payment Reference Number</label>
+          <input
+            id="payment-reference"
+            type="text"
+            maxLength={60}
+            value={referenceId}
+            onChange={(e) => onReferenceChange(e.target.value)}
+            placeholder="From your GCash or BPI receipt"
+            className="w-full px-3 py-2 rounded-lg border border-brand-sand focus:outline-none focus:border-brand-brown bg-white"
+          />
+        </div>
 
         <div>
           <label className="block text-sm font-semibold text-brand-dark mb-2">Proof of Payment</label>
@@ -61,8 +72,15 @@ export default function PaymentUploadPanel() {
         </div>
       </div>
 
-      <button className="w-full bg-brand-brown text-white py-4 rounded-xl font-medium text-lg hover:bg-brand-dark transition-colors shadow-md">
-        Submit Booking
+      {error && <p role="alert" className="text-sm font-medium text-[#E02424]">{error}</p>}
+
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={submitting}
+        className="w-full bg-brand-brown text-white py-4 rounded-xl font-medium text-lg hover:bg-brand-dark transition-colors shadow-md disabled:opacity-60"
+      >
+        {submitting ? 'Submitting…' : 'Submit Booking'}
       </button>
     </div>
   );

@@ -6,7 +6,10 @@ import logoImg from '../../assets/logo.png';
 import logoTextImg from '../../assets/logo_text.png';
 
 export default function Navbar({ adminTheme }) {
-  const { isLoggedIn, setIsLoggedIn } = useAuth();
+  const { isLoggedIn, user, logout } = useAuth();
+  const displayName = user?.name || user?.email?.split('@')[0] || 'Account';
+  const firstName = displayName.split(' ')[0];
+  const initial = displayName.charAt(0).toUpperCase();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -63,16 +66,21 @@ export default function Navbar({ adminTheme }) {
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity ml-2"
                 >
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border shadow-sm transition-colors ${adminTheme === 'dark' ? 'bg-[#D8CFC4] text-[#2A180E] border-transparent' : 'bg-[#2A180E] text-[#ECE7DC] border-brand-sand/50'}`}>
-                    G
+                    {initial}
                   </div>
                   <div className="text-left hidden lg:block">
-                    <p className={`text-sm font-medium leading-tight ${textColor}`}>Graciella</p>
+                    <p className={`text-sm font-medium leading-tight ${textColor}`}>{firstName}</p>
                   </div>
                   <ChevronDown size={14} className={adminTheme === 'dark' ? 'text-white/70' : 'text-brand-dark/50'} />
                 </button>
 
                 {dropdownOpen && (
                   <div className="absolute right-0 mt-4 w-64 bg-[#2A180E] rounded-xl shadow-xl py-3 border border-[#433B38] text-white z-50 animate-fade-in">
+                    {user?.isAdmin && (
+                      <Link to={isAdmin ? '/' : '/admin'} className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                        <FileText size={18} className="text-white" /> {isAdmin ? 'View site' : 'Studio admin'}
+                      </Link>
+                    )}
                     <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
                       <User size={18} className="text-white" /> My profile
                     </Link>
@@ -98,7 +106,7 @@ export default function Navbar({ adminTheme }) {
                     
                     <hr className="border-white/10 my-3 mx-5" />
                     
-                    <button onClick={() => { setIsLoggedIn(false); setDropdownOpen(false); }} className="w-full flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium text-left">
+                    <button onClick={() => { logout(); setDropdownOpen(false); }} className="w-full flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium text-left">
                       <LogOut size={18} className="text-white" /> Logout
                     </button>
                   </div>
@@ -135,11 +143,14 @@ export default function Navbar({ adminTheme }) {
             {isLoggedIn ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-3 px-3 py-2 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-brand-brown flex items-center justify-center text-brand-beige font-bold text-sm">G</div>
-                  <span className="font-medium text-brand-dark">Graciella</span>
+                  <div className="w-8 h-8 rounded-full bg-brand-brown flex items-center justify-center text-brand-beige font-bold text-sm">{initial}</div>
+                  <span className="font-medium text-brand-dark">{firstName}</span>
                 </div>
+                {user?.isAdmin && (
+                  <Link to="/admin" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 text-brand-dark hover:bg-brand-sand/30 rounded-lg"><FileText size={18} /> Studio admin</Link>
+                )}
                 <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 text-brand-dark hover:bg-brand-sand/30 rounded-lg"><User size={18} /> Dashboard</Link>
-                <button onClick={() => { setIsLoggedIn(false); setMobileMenuOpen(false); }} className="w-full text-left flex items-center gap-3 px-3 py-2 text-brand-dark hover:bg-brand-sand/30 rounded-lg"><LogOut size={18} /> Logout</button>
+                <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="w-full text-left flex items-center gap-3 px-3 py-2 text-brand-dark hover:bg-brand-sand/30 rounded-lg"><LogOut size={18} /> Logout</button>
               </div>
             ) : (
               <Link to="/register" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-center gap-2 bg-brand-brown text-brand-beige px-4 py-3 rounded-full font-medium w-full">

@@ -1,0 +1,44 @@
+name: Send class reminders
+
+# Asks the API, every half hour, to email a reminder to everyone whose class
+# starts within the next 12 hours. The API remembers who it has already
+# reminded, so each client gets exactly one email per booking however often
+# this runs.
+#
+# GitHub may start a scheduled run late, sometimes by 15 minutes or more when
+# it is busy, so a reminder arrives between roughly 11 and 12 hours before the
+# class rather than on the dot.
+#
+# SET THESE ONCE, BY HAND, or this runs green and sends nothing:
+#   Settings > Secrets and variables > Actions
+#     Variables > VITE_API_BASE_URL   https://your-api.vercel.app  (no trailing
+#                                     slash; the same one the Pages build uses)
+#     Secrets   > CRON_SECRET         the same value as CRON_SECRET on the server
+#
+# GitHub switches scheduled workflows off after 60 days with no commits. If
+# reminders stop, look under the Actions tab for a banner asking you to
+# re-enable this one.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask the API to send due reminders
+        env:
+          API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$API_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::notice::VITE_API_BASE_URL or CRON_SECRET is not set, so no reminders were sent."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -X POST "$API_BASE_URL/api/reminders/send" \
+            -H "Authorization: Bearer $CRON_SECRET"

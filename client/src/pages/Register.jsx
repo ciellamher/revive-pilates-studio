@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 
 import logoImg from '../assets/logo.png';
+import { API_BASE } from '../api/base';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -39,10 +40,13 @@ export default function Register() {
     setPreviewUrl('');
     
     try {
-      const res = await fetch('http://localhost:3000/api/auth/login', {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailToUse }),
+        body: JSON.stringify({
+          email: emailToUse,
+          name: isLogin ? '' : `${registerForm.firstName} ${registerForm.lastName}`.trim(),
+        }),
       });
       
       const data = await res.json();

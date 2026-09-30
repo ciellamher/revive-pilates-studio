@@ -5,8 +5,11 @@ import { User, Calendar, BookOpen, Package, Receipt, Bell } from 'lucide-react';
 import CustomDropdown from '../components/atoms/CustomDropdown';
 import ContactFAQSection from '../components/organisms/ContactFAQSection';
 import Footer from '../components/organisms/Footer';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const displayName = user?.name || user?.email?.split('@')[0] || '';
   const [activeTab, setActiveTab] = useState('profile');
   const [scheduleFilter, setScheduleFilter] = useState('All types');
 
@@ -33,7 +36,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-xs text-brand-dark/50 mb-1">Email address</p>
                   <p className="font-medium text-brand-dark flex items-center gap-2">
-                    graciellamher@gmail.com
+                    {user?.email}
                     <span className="w-4 h-4 bg-brand-dark/20 text-white rounded-full flex items-center justify-center text-[10px] font-bold">!</span>
                   </p>
                   <p className="text-xs text-brand-dark/50 mt-2 mb-2">Communications and transactions history will be sent to this email address</p>
@@ -70,7 +73,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6">
                 <div>
                   <p className="text-xs text-brand-dark/50 mb-1">Name</p>
-                  <p className="font-medium text-brand-dark">Graciella Jimenez</p>
+                  <p className="font-medium text-brand-dark">{displayName}</p>
                 </div>
                 <div></div>
                 <div>
@@ -213,9 +216,9 @@ export default function Dashboard() {
           {/* User Profile Card */}
           <div className="p-8 border-b border-brand-sand/10 flex flex-col items-center text-center">
             <div className="w-[100px] h-[100px] rounded-full bg-[#c977b3] flex items-center justify-center text-white text-[40px] font-bold mb-5 shadow-sm">
-              G
+              {displayName.charAt(0).toUpperCase()}
             </div>
-            <h2 className="text-2xl font-bold font-serif text-brand-dark mb-2 tracking-tight">Graciella Jimenez</h2>
+            <h2 className="text-2xl font-bold font-serif text-brand-dark mb-2 tracking-tight">{displayName}</h2>
             <p className="text-sm text-brand-dark/50 mb-3 font-medium">Client No: 01563897</p>
             <p className="text-[13px] font-medium text-brand-dark/40">Joined since 20 Aug 2026</p>
           </div>

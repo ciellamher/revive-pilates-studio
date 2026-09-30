@@ -5,6 +5,9 @@ import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { Calendar, Clock, MapPin, User, Ticket } from 'lucide-react';
 import PaymentUploadPanel from '../components/organisms/PaymentUploadPanel';
+import { API_BASE } from '../api/base';
+import { useAuth } from '../contexts/AuthContext';
+import classPreviewImg from '../assets/revive-photos/reformer_11.jpg';
 
 export default function Checkout() {
   const [selectedPricing, setSelectedPricing] = useState(null);
@@ -16,8 +19,31 @@ export default function Checkout() {
     slotsLeft = 2, 
     title = 'Group Reformer Class', 
     instructor = 'Coach Dani',
-    time = '8:00am' 
+    time = '8:00am',
+    classId = null,
+    date = null,
+    duration = '55 mins',
+    branch = 'Angeles',
+    capacity,
+    takenSpots = []
   } = location.state || {};
+
+  // Signed-in clients start with their own details; they can still change them.
+  const { user } = useAuth();
+  const [attendeeName, setAttendeeName] = useState(user?.name ?? '');
+  const [attendeeEmail, setAttendeeEmail] = useState(user?.email ?? '');
+  const [selectedSpot, setSelectedSpot] = useState(null);
+  const [referenceId, setReferenceId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [booking, setBooking] = useState(null);
+
+  // '2026-10-01' -> 'Thu, 1 Oct 2026', built from its parts so the day cannot
+  // shift with the visitor's timezone.
+  const dateLabel = date
+    ? new Date(...date.split('-').map((part, i) => Number(part) - (i === 1 ? 1 : 0)))
+        .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Thu, 20 Aug 2026';
 
   // Infer classType from title for dynamic pricing and shapes
   const classType = title.toLowerCase().includes('mat') ? 'mat' : title.toLowerCase().includes('barre') ? 'barre' : 'reformer';
@@ -32,6 +58,38 @@ export default function Checkout() {
   } else if (t.includes('clinical')) {
     price = '2,800';
   }
+
+  const handleSubmitBooking = async () => {
+    if (!classId) return setSubmitError('Please choose a class from the timetable first.');
+    if (!attendeeName.trim()) return setSubmitError('Please enter your name.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attendeeEmail.trim())) return setSubmitError('Please enter a valid email address.');
+    if (!selectedSpot) return setSubmitError('Please select your spot.');
+
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          classId: Number(classId),
+          clientName: attendeeName,
+          clientEmail: attendeeEmail,
+          spot: selectedSpot,
+          referenceId,
+          amount: `₱ ${price}`
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Something went wrong. Please try again.');
+      setBooking(data);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      setSubmitError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#FAF7F2]">
@@ -49,27 +107,66 @@ export default function Checkout() {
         <div className="flex flex-col lg:flex-row gap-12">
           
           {/* Left Column */}
+          {booking ? (
+          <div className="flex-1">
+            <section role="status" className="border border-brand-sand/50 rounded-xl p-8 bg-white shadow-sm">
+              <h2 className="text-2xl font-serif font-bold text-brand-dark mb-3">Booking received</h2>
+              <p className="text-brand-dark/80 mb-2">
+                Thanks, {booking.clientName}. Spot {booking.spot} in {booking.className} is held for you while the studio verifies your payment.
+              </p>
+              <p className="text-brand-dark/80 mb-6">
+                Once it is confirmed, we will email a reminder to <strong className="text-brand-dark">{attendeeEmail.trim()}</strong> about 12 hours before your class.
+              </p>
+              <p className="text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-6">Booking ID {booking.id}</p>
+              <Link to="/book" className="inline-block bg-brand-brown text-white px-6 py-3 rounded-xl font-bold hover:bg-brand-dark transition-colors">Back to timetable</Link>
+            </section>
+          </div>
+          ) : (
           <div className="flex-1 flex flex-col gap-10">
             
             {/* Attendee Info */}
             <section>
               <h2 className="text-lg font-serif font-bold text-brand-dark mb-4">Attendee</h2>
               
-              <div className="border border-brand-sand/50 rounded-xl p-4 bg-white shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-brand-sand/30 flex items-center justify-center text-brand-dark">
-                  <User size={20} />
+              <div className="border border-brand-sand/50 rounded-xl p-4 bg-white shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="attendee-name" className="block text-xs font-bold text-brand-dark/60 mb-1">Full name</label>
+                  <input
+                    id="attendee-name"
+                    type="text"
+                    autoComplete="name"
+                    maxLength={100}
+                    value={attendeeName}
+                    onChange={(e) => setAttendeeName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-sand focus:outline-none focus:border-brand-brown bg-white"
+                  />
                 </div>
                 <div>
-                  <p className="font-bold text-brand-dark">Graciella Jimenez</p>
-                  <p className="text-xs text-brand-dark/60">Booking for yourself</p>
+                  <label htmlFor="attendee-email" className="block text-xs font-bold text-brand-dark/60 mb-1">Email</label>
+                  <input
+                    id="attendee-email"
+                    type="email"
+                    autoComplete="email"
+                    maxLength={254}
+                    value={attendeeEmail}
+                    onChange={(e) => setAttendeeEmail(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-sand focus:outline-none focus:border-brand-brown bg-white"
+                  />
                 </div>
+                <p className="sm:col-span-2 text-xs text-brand-dark/60">We send your class reminder to this email, about 12 hours before the class.</p>
               </div>
             </section>
 
             {/* Spot Selector */}
             <section>
               <h2 className="text-lg font-bold text-brand-dark mb-4">Select your Spot</h2>
-              <SpotSelectorMap classType={classType} />
+              <SpotSelectorMap
+                classType={classType}
+                spotCount={capacity}
+                takenSpots={takenSpots}
+                selectedSpot={selectedSpot}
+                onSelectSpot={setSelectedSpot}
+              />
             </section>
 
             {/* Pricing Option */}
@@ -93,7 +190,13 @@ export default function Checkout() {
 
             {selectedPricing === 'direct' && (
               <section className="animate-fade-in -mt-4">
-                <PaymentUploadPanel />
+                <PaymentUploadPanel
+                  referenceId={referenceId}
+                  onReferenceChange={setReferenceId}
+                  onSubmit={handleSubmitBooking}
+                  submitting={submitting}
+                  error={submitError}
+                />
               </section>
             )}
 
@@ -180,6 +283,7 @@ export default function Checkout() {
             </section>
             
           </div>
+          )}
 
           {/* Right Column: Summary Card */}
           <div className="w-full lg:w-[400px]">
@@ -187,7 +291,7 @@ export default function Checkout() {
               
               {/* Image */}
               <div className="h-56 border-b border-brand-sand/30 overflow-hidden">
-                <img src="/src/assets/revive-photos/reformer_11.jpg" alt="Class preview" className="w-full h-full object-cover" />
+                <img src={classPreviewImg} alt="Class preview" className="w-full h-full object-cover" />
               </div>
               
               <div className="p-8">
@@ -197,13 +301,13 @@ export default function Checkout() {
                   <div className="flex gap-4">
                     <Calendar size={20} className="text-brand-dark/40 shrink-0" />
                     <div>
-                      <p className="text-sm font-bold text-brand-dark">Thu, 20 Aug 2026</p>
+                      <p className="text-sm font-bold text-brand-dark">{dateLabel}</p>
                     </div>
                   </div>
                   <div className="flex gap-4">
                     <Clock size={20} className="text-brand-dark/40 shrink-0" />
                     <div>
-                      <p className="text-sm font-bold text-brand-dark">{time}, 55 mins</p>
+                      <p className="text-sm font-bold text-brand-dark">{time}, {duration}</p>
                       <p className="text-xs text-brand-dark/50">Check-in anytime before class begins</p>
                     </div>
                   </div>
@@ -211,7 +315,7 @@ export default function Checkout() {
                     <MapPin size={20} className="text-brand-dark/40 shrink-0" />
                     <div>
                       <p className="text-sm font-bold text-brand-dark">Revive Pilates Studio</p>
-                      <p className="text-xs text-brand-dark/50">Angeles City Branch</p>
+                      <p className="text-xs text-brand-dark/50">{branch === 'San Fernando' ? 'San Fernando Branch' : 'Angeles City Branch'}</p>
                     </div>
                   </div>
                   <div className="flex gap-4 items-center">

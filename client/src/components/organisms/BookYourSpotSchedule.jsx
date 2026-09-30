@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
+import { API_BASE } from '../../api/base';
+import { checkoutClassState } from '../../api/checkoutState';
 
 const getWeekDays = (weeksOffset = 0) => {
   const days = [];
@@ -60,7 +62,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
   const [classes, setClasses] = useState([]);
   
   useEffect(() => {
-    fetch('http://localhost:3000/api/classes')
+    fetch(`${API_BASE}/api/classes`)
       .then(res => res.json())
       .then(data => {
         if (data.classes) {
@@ -79,7 +81,12 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
         if (classType !== 'Classes' && cls.title && !cls.title.toLowerCase().includes(classType.toLowerCase())) return false;
         if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
         return true;
-      });
+      }).map(cls => ({
+        ...cls,
+        location: cls.branch,
+        spots: `${Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0))} / ${cls.capacity} left`,
+        status: cls.isCancelled ? 'Cancelled' : cls.isFull ? 'Waitlist' : 'Book Now'
+      }));
       data.push({
         dayId: d.id,
         dateHeading: getHeading(idx),
@@ -90,16 +97,25 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
     return data;
   }, [currentWeekDays, classes, location, classType, instructor]);
 
+  const [coaches, setCoaches] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/coaches`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.coaches) setCoaches(data.coaches);
+      })
+      .catch(err => console.error("Error fetching coaches:", err));
+  }, []);
+
+  // Only the coaches who teach at the picked branch; all of them until a
+  // branch is picked.
   const availableInstructors = useMemo(() => {
-    const instructors = new Set();
-    classes.forEach(cls => {
-      if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return;
-      if (cls.instructor) {
-        instructors.add(cls.instructor);
-      }
-    });
-    return ['Instructor', ...Array.from(instructors)];
-  }, [classes, location]);
+    const names = coaches
+      .filter(coach => location === 'Location' || coach.branches.some(branch => location.includes(branch)))
+      .map(coach => coach.name);
+    return ['Instructor', ...new Set(names)];
+  }, [coaches, location]);
 
   useEffect(() => {
     if (instructor !== 'Instructor' && !availableInstructors.includes(instructor)) {
@@ -220,7 +236,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                         
                         {/* Title */}
                         <div className="flex items-center gap-2 md:w-1/4">
-                          <h4 className="text-brand-beige font-sans font-bold text-lg tracking-wide uppercase">{cls.title}</h4>
+                          <h4 className={`text-brand-beige font-sans font-bold text-lg tracking-wide uppercase ${cls.isCancelled ? 'line-through opacity-60' : ''}`}>{cls.title}</h4>
                         </div>
                         
                         {/* Location */}
@@ -236,24 +252,24 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                         
                         {/* Action Button */}
                         <div className="flex flex-col gap-2 justify-center md:w-1/5 shrink-0">
-                          <Link 
-                            to="/checkout"
-                            state={{
-                              title: cls.title,
-                              instructor: cls.instructor,
-                              time: cls.time,
-                              isWaitlist: cls.status === 'Waitlist',
-                              slotsLeft: parseInt(cls.spots.split(' ')[0]) || 0
-                            }}
-                            className="bg-brand-sand text-brand-dark px-8 py-3 rounded-full text-sm font-bold hover:bg-white transition-colors w-full shadow-sm text-center block"
-                          >
-                            {cls.status}
-                          </Link>
+                          {cls.isCancelled ? (
+                            <span className="border border-brand-beige/30 text-brand-beige/60 px-8 py-3 rounded-full text-sm font-bold w-full text-center block">
+                              {cls.status}
+                            </span>
+                          ) : (
+                            <Link 
+                              to="/checkout"
+                              state={checkoutClassState(cls)}
+                              className="bg-brand-sand text-brand-dark px-8 py-3 rounded-full text-sm font-bold hover:bg-white transition-colors w-full shadow-sm text-center block"
+                            >
+                              {cls.status}
+                            </Link>
+                          )}
                           
                           {(() => {
                             const match = cls.spots.match(/(\d+)\s*\/\s*(\d+)/);
                             const isMatOrBarre = cls.title.toLowerCase().includes('mat') || cls.title.toLowerCase().includes('barre');
-                            if (match && match[1] === match[2] && parseInt(match[1]) > 0 && cls.title !== "Private Class" && !isMatOrBarre) {
+                            if (match && match[1] === match[2] && parseInt(match[1]) > 0 && cls.title !== "Private Class" && !isMatOrBarre && !cls.isCancelled) {
                               return (
                                 <Link 
                                   to="/checkout"

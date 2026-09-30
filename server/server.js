@@ -1,7 +1,12 @@
 import express from 'express';
 import cors from 'cors';
-import nodemailer from 'nodemailer';
 import jwt from 'jsonwebtoken';
+import { pool } from './db/pool.js';
+import * as classesRepo from './classesRepo.js';
+import * as bookingsRepo from './bookingsRepo.js';
+import * as coachesRepo from './coachesRepo.js';
+import * as usersRepo from './usersRepo.js';
+import { sendMail, sendReminder, sendCancellation, sendConfirmation } from './mailer.js';
 
 const app = express();
 
@@ -13,95 +18,400 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: '100kb' }));
 
-// Auth Secrets
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
 
-// Mock DB for user accounts (for demo purposes)
-let users = [
-  { name: 'Graciella Jimenez', email: 'graciellamher@gmail.com', pkg: '10-Class Reformer', credits: 4 },
-  { name: 'John Doe', email: 'john@example.com', pkg: '5-Class Mat', credits: 1 },
-  { name: 'Jane Smith', email: 'jane@example.com', pkg: 'Drop-in', credits: 0 },
-  { name: 'Chelsea Ann', email: 'chelsea@example.com', pkg: '10-Class Reformer', credits: 8 },
-  { name: 'Bea Carlos', email: 'bea@example.com', pkg: '5-Class Mat', credits: 5 },
-];
+// JWT_SECRET signs the login links and the sessions, including the admin's. On
+// a live site it must be your own secret: with the fallback below, anyone who
+// has read this file could sign themselves in as the admin.
+if (IS_PRODUCTION && !process.env.JWT_SECRET) {
+  console.error('JWT_SECRET is not set. Add it in the host dashboard, then redeploy.');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET || 'local-development-only-secret';
 
-app.get('/api/users', (req, res) => {
-  res.json({ users });
-});
+// Who may use the admin dashboard. Comma-separated emails.
+const adminEmails = (process.env.ADMIN_EMAILS || 'gdjimenez@student.hau.edu.ph')
+  .split(',')
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
 
-// Mock DB for classes (shared state for demo purposes)
-let classes = [];
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BRANCHES = ['Angeles', 'San Fernando'];
 
-app.get('/api/classes', (req, res) => {
-  res.json({ classes });
-});
+// Two kinds of token, told apart by `purpose` so one cannot stand in for the
+// other: the link in the email lasts 15 minutes and is only good for signing
+// in; the session it is exchanged for lasts a week.
+const signToken = (payload, expiresIn) => jwt.sign(payload, JWT_SECRET, { expiresIn });
 
-app.post('/api/classes', (req, res) => {
-  const newClass = { id: Date.now().toString(), ...req.body };
-  classes.push(newClass);
-  res.status(201).json(newClass);
-});
+function readToken(req, purpose) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded.purpose === purpose ? decoded : null;
+  } catch {
+    return null;
+  }
+}
 
-app.patch('/api/classes/:id', (req, res) => {
-  const { id } = req.params;
-  const index = classes.findIndex(c => c.id === id);
-  if (index !== -1) {
-    classes[index] = { ...classes[index], ...req.body };
-    res.json(classes[index]);
-  } else {
-    res.status(404).json({ error: 'Class not found' });
+const isAdmin = (email) => adminEmails.includes(email.toLowerCase());
+
+function requireAdmin(req, res, next) {
+  const session = readToken(req, 'session');
+  if (!session) return res.status(401).json({ error: 'Please sign in' });
+  if (!isAdmin(session.email)) return res.status(403).json({ error: 'Admins only' });
+  req.userEmail = session.email;
+  next();
+}
+
+const toUser = (row) => ({ email: row.email, name: row.name, isAdmin: isAdmin(row.email) });
+
+app.get('/api/users', requireAdmin, async (req, res, next) => {
+  try {
+    res.json({ users: await usersRepo.getDirectory(pool) });
+  } catch (error) {
+    next(error);
   }
 });
 
-// Mock DB for bookings
-let bookings = [];
+function parseCoachInput(body) {
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  const specialty = typeof body.specialty === 'string' ? body.specialty.trim() : '';
+  const bio = typeof body.bio === 'string' ? body.bio.trim() : '';
+  const branches = Array.isArray(body.branches) ? BRANCHES.filter((branch) => body.branches.includes(branch)) : [];
 
-app.get('/api/bookings', (req, res) => {
-  res.json({ bookings });
+  if (!name || name.length > 100) return { error: 'Please enter the coach\'s name (up to 100 characters)' };
+  if (specialty.length > 100) return { error: 'Specialty must be 100 characters or fewer' };
+  if (bio.length > 1000) return { error: 'Bio must be 1000 characters or fewer' };
+  if (branches.length === 0) return { error: 'Choose at least one branch' };
+  return { input: { name, specialty, bio, branches } };
+}
+
+app.get('/api/coaches', async (req, res, next) => {
+  try {
+    res.json({ coaches: await coachesRepo.getAll(pool) });
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.post('/api/bookings', (req, res) => {
-  const newBooking = { id: `BK-${Math.floor(Math.random() * 9000) + 1000}`, status: 'pending', ...req.body };
-  bookings.push(newBooking);
-  res.status(201).json(newBooking);
+app.post('/api/coaches', requireAdmin, async (req, res, next) => {
+  try {
+    const { input, error } = parseCoachInput(req.body ?? {});
+    if (error) return res.status(400).json({ error });
+    res.status(201).json(await coachesRepo.create(pool, input));
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.patch('/api/bookings/:id', (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-  const booking = bookings.find(b => b.id === id);
-  if (booking) {
-    booking.status = status;
+app.put('/api/coaches/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Coach not found' });
+    const { input, error } = parseCoachInput(req.body ?? {});
+    if (error) return res.status(400).json({ error });
+    const id = Number(req.params.id);
+
+    // Taking a coach off a branch would leave that branch's upcoming classes
+    // with an instructor who no longer teaches there.
+    const stillTeaching = (await coachesRepo.getBranchesWithUpcomingClasses(pool, id))
+      .filter((branch) => !input.branches.includes(branch));
+    if (stillTeaching.length > 0) {
+      return res.status(409).json({
+        error: `This coach still has upcoming classes at ${stillTeaching.join(' and ')}. Reassign or cancel those classes first.`,
+      });
+    }
+
+    const updated = await coachesRepo.update(pool, id, input);
+    if (!updated) return res.status(404).json({ error: 'Coach not found' });
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/coaches/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Coach not found' });
+    const outcome = await coachesRepo.remove(pool, Number(req.params.id));
+    if (outcome === 'not-found') return res.status(404).json({ error: 'Coach not found' });
+    if (outcome === 'in-use') {
+      return res.status(409).json({ error: 'This coach is on the schedule, so they cannot be deleted. Reassign their classes first.' });
+    }
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Classes live in PostgreSQL, so every browser and every computer sees the
+// same schedule and it survives a server restart.
+const HALF_HOUR_TIME = /^(0[1-9]|1[0-2]):(00|30) (AM|PM)$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Checks the fields that are present and returns { input } or { error }.
+// POST passes requireAll so a missing field is an error; PATCH does not, so a
+// request can change one field, such as cancelling a class.
+function parseClassInput(body, { requireAll }) {
+  const input = {};
+  const has = (key) => body[key] !== undefined;
+  const missing = (key) => requireAll && !has(key);
+
+  if (missing('title') || missing('date') || missing('time') || missing('duration') ||
+      missing('coachId') || missing('branch') || missing('capacity')) {
+    return { error: 'title, date, time, duration, coachId, branch and capacity are required' };
+  }
+
+  if (has('title')) {
+    if (typeof body.title !== 'string' || !body.title.trim() || body.title.length > 100) {
+      return { error: 'title must be 1 to 100 characters' };
+    }
+    input.title = body.title.trim();
+  }
+  if (has('date')) {
+    if (typeof body.date !== 'string' || !ISO_DATE.test(body.date) || Number.isNaN(Date.parse(body.date))) {
+      return { error: 'date must be a real date in YYYY-MM-DD format' };
+    }
+    input.date = body.date;
+  }
+  if (has('time')) {
+    if (typeof body.time !== 'string' || !HALF_HOUR_TIME.test(body.time)) {
+      return { error: 'time must be on the hour or half hour, like 08:30 AM' };
+    }
+    input.time = body.time;
+  }
+  if (has('duration')) {
+    const minutes = parseInt(body.duration, 10);
+    if (!Number.isInteger(minutes) || minutes < 30 || minutes > 480) {
+      return { error: 'duration must be between 30 and 480 minutes' };
+    }
+    input.durationMin = minutes;
+  }
+  if (has('coachId')) {
+    const coachId = Number(body.coachId);
+    if (!Number.isInteger(coachId) || coachId < 1) {
+      return { error: 'Please choose an instructor' };
+    }
+    input.coachId = coachId;
+  }
+  if (has('branch')) {
+    if (!BRANCHES.includes(body.branch)) {
+      return { error: `branch must be one of: ${BRANCHES.join(', ')}` };
+    }
+    input.branch = body.branch;
+  }
+  if (has('capacity')) {
+    if (!Number.isInteger(body.capacity) || body.capacity < 1 || body.capacity > 50) {
+      return { error: 'capacity must be a whole number from 1 to 50' };
+    }
+    input.capacity = body.capacity;
+  }
+  if (has('isCancelled')) {
+    if (typeof body.isCancelled !== 'boolean') {
+      return { error: 'isCancelled must be true or false' };
+    }
+    input.isCancelled = body.isCancelled;
+  }
+  return { input };
+}
+
+// An instructor has to be a coach who teaches at the class's branch.
+async function checkCoachTeachesAt(coachId, branch) {
+  const coach = await coachesRepo.getById(pool, coachId);
+  if (!coach) return 'That instructor no longer exists. Please choose another.';
+  if (!coach.branches.includes(branch)) return `${coach.name} does not teach at the ${branch} branch.`;
+  return null;
+}
+
+app.get('/api/classes', async (req, res, next) => {
+  try {
+    res.json({ classes: await classesRepo.getAll(pool) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/classes', requireAdmin, async (req, res, next) => {
+  try {
+    const { input, error } = parseClassInput(req.body ?? {}, { requireAll: true });
+    if (error) return res.status(400).json({ error });
+    const coachError = await checkCoachTeachesAt(input.coachId, input.branch);
+    if (coachError) return res.status(400).json({ error: coachError });
+    res.status(201).json(await classesRepo.create(pool, input));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/classes/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+    const { input, error } = parseClassInput(req.body ?? {}, { requireAll: false });
+    if (error) return res.status(400).json({ error });
+    const id = Number(req.params.id);
+    const before = await classesRepo.getById(pool, id);
+    if (!before) return res.status(404).json({ error: 'Class not found' });
+    if (input.coachId !== undefined || input.branch !== undefined) {
+      const coachError = await checkCoachTeachesAt(input.coachId ?? Number(before.coachId), input.branch ?? before.branch);
+      if (coachError) return res.status(400).json({ error: coachError });
+    }
+    const updated = await classesRepo.update(pool, id, input);
+
+    // Tell everyone who booked, but only on the change from open to cancelled.
+    // The cancellation itself is already saved: a mail failure is logged and
+    // reported in `notified`, it does not undo the cancel.
+    if (!before.isCancelled && updated.isCancelled) {
+      const recipients = await bookingsRepo.getRecipientsForClass(pool, id);
+      const results = await Promise.allSettled(recipients.map(sendCancellation));
+      results.forEach((result) => {
+        if (result.status === 'rejected') console.error('Cancellation email failed:', result.reason.message);
+      });
+      updated.notified = results.filter((result) => result.status === 'fulfilled').length;
+    }
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+const REMINDER_HOURS = 12;
+
+app.get('/api/bookings', requireAdmin, async (req, res, next) => {
+  try {
+    res.json({ bookings: await bookingsRepo.getAll(pool) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/bookings', async (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    const classId = Number(body.classId);
+    const clientName = typeof body.clientName === 'string' ? body.clientName.trim() : '';
+    const clientEmail = typeof body.clientEmail === 'string' ? body.clientEmail.trim().toLowerCase() : '';
+    const referenceId = typeof body.referenceId === 'string' ? body.referenceId.trim() : '';
+    const amount = typeof body.amount === 'string' ? body.amount.trim() : '';
+
+    if (!Number.isInteger(classId) || classId < 1) {
+      return res.status(400).json({ error: 'classId is required' });
+    }
+    if (!clientName || clientName.length > 100) {
+      return res.status(400).json({ error: 'Please enter your name' });
+    }
+    if (!EMAIL.test(clientEmail) || clientEmail.length > 254) {
+      return res.status(400).json({ error: 'Please enter a valid email address' });
+    }
+    if (!Number.isInteger(body.spot) || body.spot < 1) {
+      return res.status(400).json({ error: 'Please select a spot' });
+    }
+    if (referenceId.length > 60 || amount.length > 20) {
+      return res.status(400).json({ error: 'Reference number or amount is too long' });
+    }
+
+    const { booking, problem } = await bookingsRepo.create(pool, {
+      classId, clientName, clientEmail, spot: body.spot, referenceId, amount,
+    });
+    if (problem === 'spot-taken') {
+      return res.status(409).json({ error: 'That spot was just taken. Please choose another one.' });
+    }
+    if (problem === 'unavailable') {
+      return res.status(409).json({ error: 'This class can no longer be booked.' });
+    }
+    // So the client shows up in the admin's Client Directory.
+    await usersRepo.upsert(pool, { email: clientEmail, name: clientName });
+    res.status(201).json(booking);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/bookings/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    const status = req.body?.status;
+    if (!['pending', 'confirmed', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'status must be pending, confirmed or rejected' });
+    }
+    const id = Number(req.params.id);
+    const before = await bookingsRepo.getRecipient(pool, id);
+    if (!before) return res.status(404).json({ error: 'Booking not found' });
+    const { booking, problem } = await bookingsRepo.setStatus(pool, id, status);
+    if (problem === 'spot-taken') {
+      return res.status(409).json({ error: 'That spot has since been booked by someone else.' });
+    }
+
+    // Tell the client, but only on the change to confirmed. The confirmation is
+    // already saved: a mail failure is logged and reported in `emailed`.
+    if (before.status !== 'confirmed' && status === 'confirmed') {
+      try {
+        await sendConfirmation(before);
+        booking.emailed = true;
+      } catch (error) {
+        console.error(`Confirmation email for booking ${id} failed:`, error.message);
+        booking.emailed = false;
+      }
+    }
     res.json(booking);
-  } else {
-    res.status(404).json({ error: 'Booking not found' });
+  } catch (error) {
+    next(error);
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required' });
+// Sends one reminder to every confirmed booking whose class starts within the
+// next 12 hours. A scheduler calls this every half hour (see
+// .github/workflows/send-reminders.yml); it is safe to call as often as you
+// like, because a booking is only ever reminded once.
+//
+// It sends email, so it is not open to the public: the caller must present
+// CRON_SECRET.
+app.post('/api/reminders/send', async (req, res, next) => {
+  try {
+    const secret = process.env.CRON_SECRET;
+    if (!secret) return res.status(503).json({ error: 'CRON_SECRET is not set on the server' });
+    if (req.headers.authorization !== `Bearer ${secret}`) {
+      return res.status(401).json({ error: 'Not authorised' });
+    }
 
-  // Generate a JWT token valid for 15 minutes
-  const token = jwt.sign({ email }, JWT_SECRET, { expiresIn: '15m' });
-  const magicLink = `http://localhost:5173/verify?token=${token}`;
+    const due = await bookingsRepo.getDueReminders(pool, REMINDER_HOURS);
+    let sent = 0;
+    let failed = 0;
+    for (const recipient of due) {
+      if (!(await bookingsRepo.claimReminder(pool, recipient.bookingId))) continue;
+      try {
+        await sendReminder(recipient);
+        sent += 1;
+      } catch (error) {
+        console.error(`Reminder for booking ${recipient.bookingId} failed:`, error.message);
+        await bookingsRepo.releaseReminder(pool, recipient.bookingId);
+        failed += 1;
+      }
+    }
+    res.json({ sent, failed });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Step 1 of signing in: email a one-time link. `name` comes from the sign-up
+// form and rides inside the link, so it is only saved once the person has
+// proved the address is theirs.
+app.post('/api/auth/login', async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 100) : '';
+  if (!EMAIL.test(email) || email.length > 254) {
+    return res.status(400).json({ error: 'Please enter a valid email address' });
+  }
+
+  const token = signToken({ email, name, purpose: 'login' }, '15m');
+  const magicLink = `${allowedOrigins[0]}/verify?token=${token}`;
 
   try {
-    // We use ethereal email for local development testing
-    let testAccount = await nodemailer.createTestAccount();
-    
-    let transporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      secure: false, 
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
-
-    let info = await transporter.sendMail({
-      from: '"Revive Pilates Studio" <noreply@revivestudio.com>',
+    const previewUrl = await sendMail({
       to: email,
       subject: "Your Login Link",
       html: `
@@ -113,32 +423,46 @@ app.post('/api/auth/login', async (req, res) => {
       `,
     });
 
-    console.log("Email sent! Preview URL: %s", nodemailer.getTestMessageUrl(info));
-    
-    // We also return the preview URL in development so the frontend can display it if we want
-    res.json({ message: 'A login link has been sent to your email!', previewUrl: nodemailer.getTestMessageUrl(info) });
+    // previewUrl only exists in test mode (no Gmail account configured), where
+    // the frontend shows it so you can open the link without a real inbox. It
+    // is never sent from a live site: it would hand the sign-in link for any
+    // address, the admin's included, to whoever asked for it.
+    res.json({
+      message: 'A login link has been sent to your email!',
+      previewUrl: IS_PRODUCTION ? undefined : previewUrl,
+    });
   } catch (error) {
     console.error('Error sending email:', error);
     res.status(500).json({ error: 'Failed to send link' });
   }
 });
 
-// Endpoint to verify the token and return the user profile
-app.get('/api/auth/verify', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  
-  if (!token) return res.status(401).json({ error: 'No token provided' });
+// Step 2: the link's token is exchanged for a week-long session.
+app.get('/api/auth/verify', async (req, res, next) => {
+  try {
+    const link = readToken(req, 'login');
+    if (!link) return res.status(401).json({ error: 'Invalid or expired link' });
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(401).json({ error: 'Invalid or expired link' });
-    
+    const user = await usersRepo.upsert(pool, { email: link.email, name: link.name });
     res.json({
-      user: {
-        email: decoded.email,
-        isAdmin: decoded.email.toLowerCase() === 'gdjimenez@student.hau.edu.ph'
-      }
+      token: signToken({ email: user.email, purpose: 'session' }, '7d'),
+      user: toUser(user),
     });
-  });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Who the session belongs to. The client calls this on load, so a session that
+// has expired signs itself out.
+app.get('/api/auth/me', async (req, res, next) => {
+  try {
+    const session = readToken(req, 'session');
+    if (!session) return res.status(401).json({ error: 'Please sign in' });
+    res.json({ user: toUser(await usersRepo.upsert(pool, { email: session.email })) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use((request, response) => {
@@ -150,7 +474,13 @@ app.use((error, request, response, next) => {
   response.status(500).json({ error: 'Something went wrong on the server' })
 })
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`)
-});
+// Vercel imports this file and calls the app itself, so it must not also open
+// a port there. Everywhere else (your laptop, Docker) it listens as usual.
+if (!process.env.VERCEL) {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`API listening on http://localhost:${port}`)
+  });
+}
+
+export default app;

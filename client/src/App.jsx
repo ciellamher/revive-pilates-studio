@@ -11,6 +11,7 @@ import Pilates from './pages/Pilates';
 import AdminDashboard from './pages/AdminDashboard';
 
 import Verify from './pages/Verify';
+import RequireAuth from './components/RequireAuth';
 
 function App() {
   return (
@@ -22,8 +23,8 @@ function App() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+          <Route path="/admin" element={<RequireAuth admin><AdminDashboard /></RequireAuth>} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/pilates" element={<Pilates />} />
           <Route path="/verify" element={<Verify />} />

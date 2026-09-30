@@ -1,15 +1,14 @@
-import { useState } from 'react';
-
-export default function SpotSelectorMap({ classType = 'reformer' }) {
-  const [selectedSpot, setSelectedSpot] = useState(null);
-
-  // 10 spots for Mat/Barre, 4 for Reformer
-  const spotCount = classType === 'reformer' ? 4 : 10;
+// The parent owns the selection, so it can send the chosen spot with the booking.
+// spotCount is the class capacity; without one it falls back to the usual
+// 10 spots for Mat/Barre, 4 for Reformer.
+export default function SpotSelectorMap({ classType = 'reformer', spotCount, takenSpots = [], selectedSpot = null, onSelectSpot = () => {} }) {
+  const setSelectedSpot = onSelectSpot;
+  const count = spotCount ?? (classType === 'reformer' ? 4 : 10);
   
-  const spots = Array.from({ length: spotCount }, (_, i) => ({
+  const spots = Array.from({ length: count }, (_, i) => ({
     id: i + 1,
     label: `S${i + 1}`,
-    isAvailable: i !== 2, // Spot 3 is taken
+    isAvailable: !takenSpots.includes(i + 1),
   }));
 
   // Render shapes based on classType
@@ -108,6 +107,9 @@ export default function SpotSelectorMap({ classType = 'reformer' }) {
             {spots.map((spot) => (
               <button
                 key={spot.id}
+                type="button"
+                aria-label={`Spot ${spot.id}${spot.isAvailable ? '' : ' (taken)'}`}
+                aria-pressed={selectedSpot === spot.id}
                 disabled={!spot.isAvailable}
                 onClick={() => spot.isAvailable && setSelectedSpot(spot.id)}
                 className={`relative max-w-[80px] flex flex-col items-center justify-center transition-all duration-300 transform outline-none group z-10

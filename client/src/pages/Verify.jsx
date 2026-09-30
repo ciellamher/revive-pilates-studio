@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { API_BASE } from '../api/base';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Verify() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [status, setStatus] = useState('Verifying your login link...');
 
   useEffect(() => {
@@ -13,7 +16,7 @@ export default function Verify() {
       return;
     }
 
-    fetch('http://localhost:3000/api/auth/verify', {
+    fetch(`${API_BASE}/api/auth/verify`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -25,8 +28,8 @@ export default function Verify() {
         return;
       }
       
-      // Save token to localStorage for authenticated requests later
-      localStorage.setItem('token', token);
+      // The link is exchanged for a session, which is what signs you in.
+      login({ token: data.token, user: data.user });
       
       setStatus('Success! Redirecting...');
       
@@ -42,7 +45,7 @@ export default function Verify() {
       console.error(err);
       setStatus('An error occurred during verification.');
     });
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, login]);
 
   return (
     <div className="min-h-screen bg-[#F5F2ED] flex flex-col items-center justify-center p-4">

@@ -18,3 +18,74 @@ CREATE TABLE IF NOT EXISTS sightings (
 -- every row and sorts it on each request.
 CREATE INDEX IF NOT EXISTS sightings_reported_at_idx
   ON sightings (reported_at DESC);
+
+-- Everyone who has signed in or booked. There are no passwords: signing in is
+-- a one-time link sent to the email address.
+CREATE TABLE IF NOT EXISTS users (
+  id         SERIAL PRIMARY KEY,
+  email      TEXT        NOT NULL UNIQUE,
+  name       TEXT        NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The studio's coaches. A coach can teach at one branch or at both, and is
+-- only offered as an instructor at the branches switched on here.
+CREATE TABLE IF NOT EXISTS coaches (
+  id              SERIAL PRIMARY KEY,
+  name            TEXT        NOT NULL,
+  specialty       TEXT        NOT NULL DEFAULT '',
+  bio             TEXT        NOT NULL DEFAULT '',
+  in_angeles      BOOLEAN     NOT NULL DEFAULT false,
+  in_san_fernando BOOLEAN     NOT NULL DEFAULT false,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (in_angeles OR in_san_fernando)
+);
+
+-- One row per scheduled class session. This is what the admin creates in
+-- Manage Schedule and what every visitor's timetable reads, so it has to live
+-- here rather than in the server's memory.
+--
+-- start_time is kept as the label the schedule grid uses ('08:30 AM'); the
+-- API only accepts half-hour marks.
+CREATE TABLE IF NOT EXISTS classes (
+  id           SERIAL PRIMARY KEY,
+  title        TEXT        NOT NULL,
+  class_date   DATE        NOT NULL,
+  start_time   TEXT        NOT NULL,
+  duration_min INTEGER     NOT NULL CHECK (duration_min > 0),
+  coach_id     INTEGER     NOT NULL REFERENCES coaches (id),
+  branch       TEXT        NOT NULL,
+  capacity     INTEGER     NOT NULL CHECK (capacity >= 1),
+  is_cancelled BOOLEAN     NOT NULL DEFAULT false,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The timetable always loads a week at a time.
+CREATE INDEX IF NOT EXISTS classes_class_date_idx
+  ON classes (class_date);
+
+-- One row per spot a client has reserved in a class. A booking starts as
+-- 'pending' and the admin confirms or rejects it after checking the payment.
+--
+-- reminder_sent_at is what stops the reminder job emailing someone twice: the
+-- job only picks up rows where it is still NULL.
+CREATE TABLE IF NOT EXISTS bookings (
+  id               SERIAL PRIMARY KEY,
+  class_id         INTEGER     NOT NULL REFERENCES classes (id),
+  client_name      TEXT        NOT NULL,
+  client_email     TEXT        NOT NULL,
+  spot             INTEGER     NOT NULL CHECK (spot >= 1),
+  reference_id     TEXT        NOT NULL DEFAULT '',
+  amount           TEXT        NOT NULL DEFAULT '',
+  status           TEXT        NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'confirmed', 'rejected')),
+  reminder_sent_at TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Two people cannot hold the same spot in the same class. A rejected booking
+-- gives its spot back. The database enforces this, so two clients who press
+-- "Submit" at the same moment cannot both win.
+CREATE UNIQUE INDEX IF NOT EXISTS bookings_class_spot_idx
+  ON bookings (class_id, spot)
+  WHERE status <> 'rejected';

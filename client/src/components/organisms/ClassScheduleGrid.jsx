@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronRight, ChevronLeft, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
+import { API_BASE, apiFetch } from '../../api/base';
+import { checkoutClassState } from '../../api/checkoutState';
 
 const getWeekDays = (weeksOffset = 0) => {
   const days = [];
@@ -74,7 +76,7 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
   const [classes, setClasses] = useState([]);
   
   const fetchClasses = () => {
-    fetch('http://localhost:3000/api/classes')
+    return fetch(`${API_BASE}/api/classes`)
       .then(res => res.json())
       .then(data => {
         if (data.classes) {
@@ -95,28 +97,32 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
     if (!dragState) return;
     const handleMouseMove = (e) => {
       const deltaY = e.clientY - dragState.startY;
-      let newHeight = Math.max(65, dragState.startHeight + deltaY); // minimum 15 mins (65px)
+      let newHeight = Math.max(130, dragState.startHeight + deltaY); // minimum 30 mins (130px)
       setLocalHeights(prev => ({ ...prev, [dragState.id]: newHeight }));
     };
     
     const handleMouseUp = async (e) => {
       const deltaY = e.clientY - dragState.startY;
-      const finalHeight = Math.max(65, dragState.startHeight + deltaY);
-      const newDurationMins = Math.round(finalHeight / (130 / 30)); // 130px = 30mins
+      const finalHeight = Math.max(130, dragState.startHeight + deltaY);
+      const newDurationMins = Math.round(finalHeight / 130) * 30; // 130px = 30mins, snapped to the half hour
       
       const currentDragId = dragState.id;
       setDragState(null);
       
       try {
-        await fetch(`http://localhost:3000/api/classes/${currentDragId}`, {
+        await apiFetch(`/api/classes/${currentDragId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ duration: `${newDurationMins} min` })
         });
-        fetchClasses();
+        await fetchClasses();
       } catch (err) {
         console.error(err);
       }
+      // Drop the dragged height so the block takes its saved, snapped duration.
+      setLocalHeights(prev => {
+        const { [currentDragId]: _dragged, ...rest } = prev;
+        return rest;
+      });
     };
     
     window.addEventListener('mousemove', handleMouseMove);
@@ -147,16 +153,25 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
     });
   };
 
+  const [coaches, setCoaches] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/coaches`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.coaches) setCoaches(data.coaches);
+      })
+      .catch(err => console.error("Error fetching coaches:", err));
+  }, []);
+
+  // Only the coaches who teach at the picked branch; all of them until a
+  // branch is picked.
   const availableInstructors = useMemo(() => {
-    const instructors = new Set();
-    classes.forEach(cls => {
-      if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return;
-      if (cls.instructor) {
-        instructors.add(cls.instructor);
-      }
-    });
-    return ['Instructor', ...Array.from(instructors)];
-  }, [classes, location]);
+    const names = coaches
+      .filter(coach => location === 'Location' || coach.branches.some(branch => location.includes(branch)))
+      .map(coach => coach.name);
+    return ['Instructor', ...new Set(names)];
+  }, [coaches, location]);
 
   useEffect(() => {
     if (instructor !== 'Instructor' && !availableInstructors.includes(instructor)) {
@@ -283,20 +298,23 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
               
               const isPast = cls.isDone;
               const isFull = cls.isFull;
+              const isCancelled = cls.isCancelled;
+              const isMuted = isPast || isFull || isCancelled;
               
-              const textBaseClass = (isPast || isFull) ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white group-hover:text-brand-sand transition-colors' : 'text-[#3A2A20] group-hover:text-brand-brown transition-colors');
+              const textBaseClass = isMuted ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white group-hover:text-brand-sand transition-colors' : 'text-[#3A2A20] group-hover:text-brand-brown transition-colors');
               
               const content = (
                 <div className="flex flex-col gap-1 w-full">
                   <div className="flex justify-between items-start w-full mb-1">
                     <span className={`text-sm font-medium ${textBaseClass}`}>{cls.time} ({cls.duration})</span>
+                    {isCancelled && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-[#E02424] bg-[#E02424]/10">Cancelled</span>}
                     {isFull && <span className={`text-[10px] font-bold uppercase tracking-wider group-hover:hidden px-2 py-0.5 rounded-full ${isDarkTheme ? 'text-white/40 bg-white/5' : 'text-[#3A2A20]/40 bg-black/5'}`}>Full</span>}
                     {isFull && <span className={`text-[10px] font-bold uppercase tracking-wider hidden group-hover:block whitespace-nowrap px-2 py-0.5 rounded-full ${isDarkTheme ? 'text-brand-sand bg-brand-sand/10' : 'text-brand-brown bg-brand-brown/10'}`}>Waitlist</span>}
                   </div>
-                  <span className={`font-bold text-xl ${textBaseClass}`}>{cls.title}</span>
-                  <span className={`text-[15px] ${(isPast || isFull) ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white' : 'text-[#3A2A20]')}`}>{cls.instructor}</span>
-                  <span className={`text-[13px] ${(isPast || isFull) ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white' : 'text-[#3A2A20]')}`}>{cls.branch}</span>
-                  {cls.isEmpty && !isPast && !cls.title.toLowerCase().includes('mat') && !cls.title.toLowerCase().includes('barre') && (
+                  <span className={`font-bold text-xl ${textBaseClass} ${isCancelled ? 'line-through' : ''}`}>{cls.title}</span>
+                  <span className={`text-[15px] ${isMuted ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white' : 'text-[#3A2A20]')}`}>{cls.instructor}</span>
+                  <span className={`text-[13px] ${isMuted ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white' : 'text-[#3A2A20]')}`}>{cls.branch}</span>
+                  {cls.isEmpty && !isPast && !isCancelled && !cls.title.toLowerCase().includes('mat') && !cls.title.toLowerCase().includes('barre') && (
                     <div className={`mt-2 text-xs font-bold underline underline-offset-2 ${isDarkTheme ? 'text-brand-sand' : 'text-brand-brown'}`}>
                       Also available as Private Class
                     </div>
@@ -304,7 +322,7 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
                 </div>
               );
 
-              if (isPast) {
+              if (isPast || (isCancelled && !onClassClick)) {
                 return (
                   <div key={cls.id} className={`border rounded-2xl p-5 flex items-start bg-transparent opacity-70 ${isDarkTheme ? 'border-white/30' : 'border-[#D8CFC4]'}`}>
                     {content}
@@ -328,13 +346,7 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
                 <Link 
                   key={cls.id} 
                   to="/checkout" 
-                  state={{
-                    title: cls.title,
-                    instructor: cls.instructor,
-                    time: cls.time,
-                    isWaitlist: isFull,
-                    slotsLeft: isFull ? 0 : (cls.title.toLowerCase().includes('reformer') || cls.title.toLowerCase().includes('clinical') ? 4 : 10)
-                  }}
+                  state={checkoutClassState(cls)}
                   className={`border rounded-2xl p-5 flex items-start group cursor-pointer shadow-sm hover:shadow-md transition-all ${isDarkTheme ? 'border-white/30 bg-white/5 hover:bg-white/10 hover:border-white' : 'border-[#D8CFC4] bg-[#F5F2ED] hover:bg-white hover:border-[#3A2A20]'}`}
                 >
                   {content}
@@ -394,7 +406,9 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
                         const topPosition = timeIdx * 130;
                         const isPast = cls.isDone;
                         const isFull = cls.isFull;
-                        const textBaseClass = (isPast || isFull) ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white group-hover:text-brand-sand transition-colors' : 'text-[#3A2A20] group-hover:text-brand-brown transition-colors');
+                        const isCancelled = cls.isCancelled;
+                        const isMuted = isPast || isFull || isCancelled;
+                        const textBaseClass = isMuted ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white group-hover:text-brand-sand transition-colors' : 'text-[#3A2A20] group-hover:text-brand-brown transition-colors');
                         
                         const durationMins = parseInt(cls.duration?.replace(' min', '') || '50', 10);
                         const computedHeight = localHeights[cls.id] !== undefined ? localHeights[cls.id] : (durationMins / 30) * 130;
@@ -403,13 +417,14 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
                           <>
                             <div className="flex justify-between items-start w-full mb-0.5">
                               <span className={`text-[12px] font-medium ${textBaseClass}`}>{cls.duration}</span>
+                              {isCancelled && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-[#E02424] bg-[#E02424]/10">Cancelled</span>}
                               {isFull && <span className={`text-[10px] font-bold uppercase tracking-wider group-hover:hidden px-1.5 py-0.5 rounded-full ${isDarkTheme ? 'text-white/40 bg-white/5' : 'text-[#3A2A20]/40 bg-black/5'}`}>Full</span>}
                               {isFull && <span className={`text-[10px] font-bold uppercase tracking-wider hidden group-hover:block whitespace-nowrap ml-2 px-1.5 py-0.5 rounded-full ${isDarkTheme ? 'text-brand-sand bg-brand-sand/10' : 'text-brand-brown bg-brand-brown/10'}`}>Waitlist</span>}
                             </div>
-                            <span className={`font-bold text-[14px] leading-tight mb-0.5 ${textBaseClass}`}>{cls.title}</span>
-                            <span className={`text-[12px] mb-0.5 ${(isPast || isFull) ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white' : 'text-[#3A2A20]')}`}>{cls.instructor}</span>
-                            <span className={`text-[11px] mb-0.5 ${(isPast || isFull) ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white' : 'text-[#3A2A20]')}`}>{cls.branch}</span>
-                            {cls.isEmpty && !isPast && !cls.title.toLowerCase().includes('mat') && !cls.title.toLowerCase().includes('barre') && (
+                            <span className={`font-bold text-[14px] leading-tight mb-0.5 ${textBaseClass} ${isCancelled ? 'line-through' : ''}`}>{cls.title}</span>
+                            <span className={`text-[12px] mb-0.5 ${isMuted ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white' : 'text-[#3A2A20]')}`}>{cls.instructor}</span>
+                            <span className={`text-[11px] mb-0.5 ${isMuted ? (isDarkTheme ? 'text-white/40' : 'text-[#3A2A20]/40') : (isDarkTheme ? 'text-white' : 'text-[#3A2A20]')}`}>{cls.branch}</span>
+                            {cls.isEmpty && !isPast && !isCancelled && !cls.title.toLowerCase().includes('mat') && !cls.title.toLowerCase().includes('barre') && (
                               <div className={`mt-auto text-[9px] font-bold underline underline-offset-2 ${isDarkTheme ? 'text-brand-sand' : 'text-brand-brown'}`}>
                                 Private Class Avail
                               </div>
@@ -417,7 +432,7 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
                           </>
                         );
 
-                        if (isPast) {
+                        if (isPast || (isCancelled && !onClassClick)) {
                           return (
                             <div key={cls.id} className="absolute left-0 right-0 px-1 py-1 flex flex-col items-start bg-transparent z-10 overflow-hidden" style={{ top: topPosition, height: computedHeight }}>
                               <div className={`w-full h-full px-2 py-1.5 flex flex-col items-start rounded-xl ${isDarkTheme ? 'bg-white/5' : 'bg-black/5'}`}>
@@ -453,13 +468,7 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
                           <div key={cls.id} className="absolute left-0 right-0 px-1 py-1 z-10 overflow-hidden" style={{ top: topPosition, height: computedHeight }}>
                             <Link 
                               to="/checkout" 
-                              state={{
-                                title: cls.title,
-                                instructor: cls.instructor,
-                                time: cls.time,
-                                isWaitlist: isFull,
-                                slotsLeft: isFull ? 0 : (cls.title.toLowerCase().includes('reformer') || cls.title.toLowerCase().includes('clinical') ? 4 : 10)
-                              }}
+                              state={checkoutClassState(cls)}
                               className={`w-full h-full px-2 py-1.5 relative flex flex-col items-start group cursor-pointer rounded-xl transition-all text-left ${isDarkTheme ? 'bg-white/10 hover:bg-white/20' : 'bg-[#F5F2ED] hover:bg-white border border-[#D8CFC4] hover:border-[#3A2A20] shadow-sm hover:shadow-md'}`}
                             >
                               {content}

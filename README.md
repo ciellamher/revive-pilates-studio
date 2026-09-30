@@ -4,7 +4,7 @@ A full-stack web application designed for boutique pilates studios to manage cla
 
 Live site: [https://ciellamher.github.io/revive-pilates-studio/](https://ciellamher.github.io/revive-pilates-studio/)
 
-> This deployment includes a functional backend using Node.js and Express. Some backend data is still using mock arrays for demonstration purposes, but the client-server architecture is in place.
+> This deployment includes a functional backend using Node.js and Express. Classes, coaches, bookings and client accounts are stored in PostgreSQL.
 
 ## Features and Usage
 
@@ -14,19 +14,25 @@ The application supports the primary flow of a client discovering the studio and
 - **Interactive Booking:** Users can view the weekly schedule, choose a specific class, and interactively select their spot (e.g., Reformer #3) in the studio.
 - **Checkout:** A simulated checkout flow for purchasing class packages.
 - **Client Dashboard:** Users can view their upcoming and past bookings.
-- **Admin Dashboard:** Studio administrators can view schedules, manage classes, and see who is booked for each spot.
+- **Admin Dashboard:** Studio administrators can manage classes, verify bookings, manage coaches per branch, and see the client directory. It is only open to the emails listed in `ADMIN_EMAILS`.
+- **Emails:** Clients are emailed when a booking is confirmed, about 12 hours before their class, and if the class is cancelled.
 
 ### API Endpoints
 The backend provides the following REST API endpoints:
-- `GET /api/users` - Fetch user list (mocked).
-- `GET /api/classes` - Fetch class schedule.
-- `POST /api/classes` - Add a new class.
-- `PATCH /api/classes/:id` - Update class details.
-- `GET /api/bookings` - Fetch bookings.
-- `POST /api/bookings` - Create a booking.
-- `PATCH /api/bookings/:id` - Update booking status.
-- `POST /api/auth/login` - Request a magic link for login.
-- `GET /api/auth/verify` - Verify magic link token and retrieve user profile.
+Routes marked *admin* need a signed-in admin session (`Authorization: Bearer <session token>`).
+- `GET /api/classes` - Fetch the class schedule.
+- `POST /api/classes` - Add a new class. *admin*
+- `PATCH /api/classes/:id` - Update a class, or cancel/restore it with `{ "isCancelled": true }`. Cancelling emails everyone booked. *admin*
+- `GET /api/coaches` - Fetch coaches and the branches they teach at.
+- `POST /api/coaches`, `PUT /api/coaches/:id`, `DELETE /api/coaches/:id` - Manage coaches. *admin*
+- `POST /api/bookings` - Book a spot in a class (name, email, spot, payment reference).
+- `GET /api/bookings` - Fetch bookings. *admin*
+- `PATCH /api/bookings/:id` - Confirm or reject a booking. Confirming emails the client. *admin*
+- `GET /api/users` - Fetch the client directory. *admin*
+- `POST /api/auth/login` - Email a one-time sign-in link.
+- `GET /api/auth/verify` - Exchange the link's token for a week-long session.
+- `GET /api/auth/me` - Who the current session belongs to.
+- `POST /api/reminders/send` - Email a reminder to every confirmed booking whose class starts within 12 hours. Requires `Authorization: Bearer <CRON_SECRET>`; called every half hour by `.github/workflows/send-reminders.yml`.
 
 ## Setup and Installation
 
@@ -69,14 +75,21 @@ VITE_API_BASE_URL=http://localhost:3000/api
 PORT=3000
 DATABASE_URL=postgresql://user:password@localhost:5432/pilates
 CORS_ORIGINS=http://localhost:5173
+JWT_SECRET=a_long_random_string
+ADMIN_EMAILS=you@example.com
+GMAIL_USER=yourstudio@gmail.com
+GMAIL_APP_PASSWORD=a_gmail_app_password
+CRON_SECRET=another_long_random_string
 ```
+Leave `GMAIL_USER` and `GMAIL_APP_PASSWORD` empty locally and email goes to an Ethereal test inbox instead of being delivered.
+
 *(Never commit real database credentials; the above are examples.)*
 
 ### Database Setup
-To set up and seed the local PostgreSQL database:
+To create the tables in the database that `DATABASE_URL` points to:
 ```bash
 cd server
-npm run db:reset
+npm run db:schema
 ```
 
 ## How to run it
@@ -116,13 +129,14 @@ Open `http://localhost:5173` in your browser. You should see the Revive Pilates 
 ## Known issues and next steps
 
 **Known Issues:**
-- The frontend is now connected to the backend API, but the database connection for PostgreSQL queries is still pending. The backend currently holds state in memory (mock arrays) which resets upon server restart.
+- The client dashboard (schedule, packages, billing) still shows sample data apart from the signed-in name and email.
+- The proof-of-payment upload is visual only; the admin verifies a booking by its payment reference number.
 - Checkout process is visual only and does not process real payments.
-- Nodemailer uses Ethereal email for development testing; real emails are not sent, but rather printed to the server console as preview links.
+- Without a Gmail account configured, Nodemailer falls back to Ethereal: emails are not delivered, and preview links are printed to the server console.
 
 **Next Steps:**
-- Connect and query the actual PostgreSQL database for users, classes, and bookings instead of using in-memory mock data.
-- Ensure state persistence across server restarts.
+- Show a client's real bookings in their dashboard.
+- Store proof-of-payment images.
 
 ## Author
 
