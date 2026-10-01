@@ -10,6 +10,7 @@ import Pilates from './pages/Pilates';
 import AdminDashboard from './pages/AdminDashboard';
 
 import Verify from './pages/Verify';
+import BuyPackage from './pages/BuyPackage';
 import RequireAuth from './components/RequireAuth';
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
           <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/admin" element={<RequireAuth admin><AdminDashboard /></RequireAuth>} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/buy/:packageId" element={<RequireAuth><BuyPackage /></RequireAuth>} />
           <Route path="/pilates" element={<Pilates />} />
           <Route path="/verify" element={<Verify />} />
         </Routes>

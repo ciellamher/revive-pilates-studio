@@ -34,7 +34,17 @@ export default function Verify() {
       setStatus('Success! Redirecting...');
       
       setTimeout(() => {
-        if (data.user.isAdmin) {
+        let returnTo = null;
+        try {
+          returnTo = localStorage.getItem('revive:returnTo');
+          localStorage.removeItem('revive:returnTo');
+        } catch {
+          // No storage: use the default page below.
+        }
+        // Only same-site paths, never a full address someone slipped in.
+        if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+          navigate(returnTo);
+        } else if (data.user.isAdmin) {
           navigate('/admin');
         } else {
           navigate('/dashboard');

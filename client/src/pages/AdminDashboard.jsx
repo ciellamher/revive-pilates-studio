@@ -125,6 +125,39 @@ export default function AdminDashboard() {
     }
   };
 
+  const [packagePurchases, setPackagePurchases] = useState([]);
+  const [purchaseError, setPurchaseError] = useState('');
+  const [busyPurchaseId, setBusyPurchaseId] = useState(null);
+
+  useEffect(() => {
+    apiFetch('/api/package-purchases')
+      .then(res => res.json())
+      .then(data => {
+        if (data.purchases) setPackagePurchases(data.purchases);
+      })
+      .catch(console.error);
+  }, []);
+
+  // Activating starts the package's validity and emails the client.
+  const setPurchaseStatus = async (purchase, status) => {
+    if (status === 'rejected' && !window.confirm(`Reject ${purchase.clientName || purchase.clientEmail}'s payment for ${purchase.name}?`)) return;
+    setPurchaseError('');
+    setBusyPurchaseId(purchase.id);
+    try {
+      const res = await apiFetch(`/api/package-purchases/${purchase.id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Request failed');
+      setPackagePurchases(prev => prev.map(p => (p.id === purchase.id ? data : p)));
+      if (data.emailed === false) {
+        window.alert('The package is active, but the email to the client could not be sent. Please let them know yourself.');
+      }
+    } catch (error) {
+      setPurchaseError(`Could not update the purchase: ${error.message}`);
+    } finally {
+      setBusyPurchaseId(null);
+    }
+  };
+
   const handleConfirm = (id) => setBookingStatus(id, 'confirmed');
   const handleReject = (id) => setBookingStatus(id, 'rejected');
 
@@ -258,6 +291,8 @@ export default function AdminDashboard() {
                 <div className="shrink-0">
                         {booking.status === 'confirmed' ? (
                           <span className="text-green-600 font-bold flex items-center gap-1 text-sm"><CheckCircle size={14}/> Confirmed</span>
+                        ) : booking.status === 'cancelled' ? (
+                          <span className="text-brand-dark/50 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Cancelled by client</span>
                         ) : (
                           <span className="text-red-600 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Rejected</span>
                         )}
@@ -290,6 +325,8 @@ export default function AdminDashboard() {
                         <td className="py-3 px-6 text-sm">
                           {booking.status === 'confirmed' ? (
                             <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={14}/> Confirmed</span>
+                          ) : booking.status === 'cancelled' ? (
+                            <span className="text-brand-dark/50 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Cancelled by client</span>
                           ) : (
                             <span className="text-red-600 font-bold flex items-center gap-1"><XCircle size={14}/> Rejected</span>
                           )}
@@ -301,6 +338,67 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
+
+          <h2 className="text-xl font-bold text-brand-dark mt-12 mb-1">Package purchases</h2>
+          <p className="text-sm text-brand-dark/60 mb-4">Check each reference number against your GCash or BPI records, then activate the package. The client is emailed and their validity period starts now.</p>
+          {purchaseError && <p role="alert" className="mb-4 text-sm font-medium text-[#E02424]">{purchaseError}</p>}
+          {(() => {
+            const pendingPurchases = packagePurchases.filter(p => p.status === 'pending');
+            const recentPurchases = packagePurchases.filter(p => p.status !== 'pending').slice(0, 8);
+            const statusText = { active: ['Active', 'text-green-600'], expired: ['Expired', 'text-brand-dark/50'], rejected: ['Rejected', 'text-red-600'] };
+            return (
+              <>
+                {pendingPurchases.length === 0 ? (
+                  <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 py-8 text-center text-brand-dark/50 font-medium">No package purchases waiting.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendingPurchases.map((p) => (
+                      <div key={p.id} className="bg-white rounded-xl shadow-sm border border-brand-sand/30 p-5 flex flex-col">
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="min-w-0">
+                            <p className="font-bold text-brand-dark break-words">{p.clientName || 'No name yet'}</p>
+                            <p className="text-xs text-brand-dark/60 break-all">{p.clientEmail}</p>
+                          </div>
+                          <p className="font-bold text-brand-dark shrink-0">{p.price}</p>
+                        </div>
+                        <p className="text-sm font-bold text-brand-dark">{p.name}</p>
+                        <p className="text-xs text-brand-dark/60 mb-4">Ref <span className="font-mono">{p.referenceId}</span> • Bought {new Date(p.purchasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                        <div className="mt-auto flex gap-3">
+                          <button
+                            onClick={() => setPurchaseStatus(p, 'rejected')}
+                            disabled={busyPurchaseId === p.id}
+                            className="flex-1 py-2.5 rounded-lg border border-[#ffb3b3] text-[#E02424] font-bold text-sm hover:bg-[#fff5f5] transition-colors disabled:opacity-60"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => setPurchaseStatus(p, 'active')}
+                            disabled={busyPurchaseId === p.id}
+                            className={`flex-1 py-2.5 rounded-lg ${theme.bg} ${theme.text} ${theme.bgHover} font-bold text-sm transition-colors disabled:opacity-60`}
+                          >
+                            {busyPurchaseId === p.id ? 'Saving…' : 'Activate'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {recentPurchases.length > 0 && (
+                  <div className="mt-4 bg-white rounded-xl shadow-sm border border-brand-sand/30 divide-y divide-brand-sand/20">
+                    {recentPurchases.map((p) => (
+                      <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm text-brand-dark font-medium truncate">{p.clientName || p.clientEmail} • {p.name}</p>
+                          <p className="text-xs text-brand-dark/50">Ref {p.referenceId}</p>
+                        </div>
+                        <span className={`text-sm font-bold shrink-0 ${statusText[p.status]?.[1] ?? ''}`}>{statusText[p.status]?.[0] ?? p.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       );
     }

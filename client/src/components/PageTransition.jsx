@@ -58,7 +58,12 @@ export default function PageTransition({ children }) {
         clearTimeout(t2);
       };
     }
-  }, [location, displayLocation.pathname]);
+    // Same page, different ?query (like a tab): no curtain, just pass it on, or
+    // the page would keep reading the old query.
+    if (location.search !== displayLocation.search || location.state !== displayLocation.state) {
+      setDisplayLocation(location);
+    }
+  }, [location, displayLocation.pathname, displayLocation.search, displayLocation.state]);
 
   const getOverlayClass = () => {
     switch (phase) {

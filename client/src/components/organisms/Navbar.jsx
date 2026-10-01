@@ -1,4 +1,4 @@
-import { Menu, User, Calendar, BookOpen, Package, Award, Receipt, Bell, FileText, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, User, Calendar, Package, Award, Receipt, Bell, FileText, LogOut, ChevronDown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -81,26 +81,26 @@ export default function Navbar({ adminTheme }) {
                         <FileText size={18} className="text-white" /> {isAdmin ? 'View site' : 'Studio admin'}
                       </Link>
                     )}
-                    <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                    <Link to="/dashboard?tab=profile" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
                       <User size={18} className="text-white" /> My profile
                     </Link>
                     {!isAdmin && (
                       <>
-                        <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                        <Link to="/dashboard?tab=schedule" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
                           <Calendar size={18} className="text-white" /> My schedule
                         </Link>
-                        <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
-                          <BookOpen size={18} className="text-white" /> My courses
-                        </Link>
-                        <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                        <Link to="/dashboard?tab=packages" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
                           <Package size={18} className="text-white" /> My packages
+                        </Link>
+                        <Link to="/dashboard?tab=billing" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                          <Receipt size={18} className="text-white" /> Billing
                         </Link>
                       </>
                     )}
                     
                     <hr className="border-white/10 my-3 mx-5" />
                     
-                    <Link to="/dashboard" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
+                    <Link to="/dashboard?tab=notifications" className="flex items-center gap-4 px-5 py-2.5 hover:bg-white/10 transition-colors text-[15px] font-medium">
                       <Bell size={18} className="text-white" /> Notification settings
                     </Link>
                     

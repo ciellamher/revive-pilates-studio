@@ -6,7 +6,9 @@ import * as classesRepo from './classesRepo.js';
 import * as bookingsRepo from './bookingsRepo.js';
 import * as coachesRepo from './coachesRepo.js';
 import * as usersRepo from './usersRepo.js';
-import { sendMail, sendReminder, sendCancellation, sendConfirmation } from './mailer.js';
+import * as packagesRepo from './packagesRepo.js';
+import { PACKAGES, findPackage, creditTypesForClass } from './packagesCatalog.js';
+import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated } from './mailer.js';
 
 const app = express();
 
@@ -60,6 +62,13 @@ function requireAdmin(req, res, next) {
   const session = readToken(req, 'session');
   if (!session) return res.status(401).json({ error: 'Please sign in' });
   if (!isAdmin(session.email)) return res.status(403).json({ error: 'Admins only' });
+  req.userEmail = session.email;
+  next();
+}
+
+function requireUser(req, res, next) {
+  const session = readToken(req, 'session');
+  if (!session) return res.status(401).json({ error: 'Please sign in' });
   req.userEmail = session.email;
   next();
 }
@@ -286,9 +295,49 @@ app.get('/api/bookings', requireAdmin, async (req, res, next) => {
   }
 });
 
+// Booking with a package credit: the client must be signed in, the spot is
+// confirmed straight away (the package was paid for already) and one credit of
+// the right type is used.
+async function bookWithPackage(req, res, body) {
+  const session = readToken(req, 'session');
+  if (!session) return res.status(401).json({ error: 'Please sign in to use your package' });
+  const purchaseId = Number(body.packageId);
+  const classId = Number(body.classId);
+  if (!Number.isInteger(purchaseId) || purchaseId < 1) return res.status(400).json({ error: 'Please choose a package' });
+  if (!Number.isInteger(classId) || classId < 1) return res.status(400).json({ error: 'classId is required' });
+  if (!Number.isInteger(body.spot) || body.spot < 1) return res.status(400).json({ error: 'Please select a spot' });
+
+  const cls = await classesRepo.getById(pool, classId);
+  if (!cls) return res.status(409).json({ error: 'This class can no longer be booked.' });
+  const creditTypes = creditTypesForClass(cls.title);
+  if (creditTypes.length === 0) return res.status(400).json({ error: 'This class cannot be booked with a package online.' });
+
+  const profile = await usersRepo.upsert(pool, { email: session.email, name: body.clientName });
+  const clientName = (typeof body.clientName === 'string' && body.clientName.trim()) || profile.name || session.email;
+
+  const { bookingId, problem } = await packagesRepo.bookWithCredit(pool, {
+    purchaseId, email: session.email, classId, spot: body.spot, clientName: clientName.slice(0, 100), creditTypes,
+  });
+  if (problem === 'no-package') return res.status(409).json({ error: 'That package is not active, or has expired.' });
+  if (problem === 'no-credit') return res.status(409).json({ error: 'That package has no credits left for this class.' });
+  if (problem === 'spot-taken') return res.status(409).json({ error: 'That spot was just taken. Please choose another one.' });
+  if (problem === 'unavailable') return res.status(409).json({ error: 'This class can no longer be booked.' });
+
+  const recipient = await bookingsRepo.getRecipient(pool, bookingId);
+  const [booking] = (await bookingsRepo.getForClient(pool, session.email)).filter((b) => b.id === String(bookingId));
+  // Awaited, because a serverless host may stop the process once the response is sent.
+  try {
+    await sendConfirmation(recipient);
+  } catch (error) {
+    console.error(`Confirmation email for booking ${bookingId} failed:`, error.message);
+  }
+  res.status(201).json(booking);
+}
+
 app.post('/api/bookings', async (req, res, next) => {
   try {
     const body = req.body ?? {};
+    if (body.packageId !== undefined) return await bookWithPackage(req, res, body);
     const classId = Number(body.classId);
     const clientName = typeof body.clientName === 'string' ? body.clientName.trim() : '';
     const clientEmail = typeof body.clientEmail === 'string' ? body.clientEmail.trim().toLowerCase() : '';
@@ -460,6 +509,144 @@ app.get('/api/auth/me', async (req, res, next) => {
     const session = readToken(req, 'session');
     if (!session) return res.status(401).json({ error: 'Please sign in' });
     res.json({ user: toUser(await usersRepo.upsert(pool, { email: session.email })) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The signed-in client's own account: profile, email choices and bookings.
+const GENDERS = ['', 'Female', 'Male', 'Prefer not to say'];
+
+function parseProfileInput(body) {
+  const input = {};
+  const text = (key, max) => {
+    if (body[key] === undefined) return null;
+    if (typeof body[key] !== 'string' || body[key].trim().length > max) return `${key} must be ${max} characters or fewer`;
+    input[key] = body[key].trim();
+    return null;
+  };
+  const error = text('name', 100) || text('phone', 30) || text('address', 200);
+  if (error) return { error };
+  if (input.name === '') return { error: 'Please enter your name' };
+  if (input.phone && !/^[0-9+()\-\s]{7,30}$/.test(input.phone)) return { error: 'Please enter a valid mobile number' };
+
+  if (body.birthDate !== undefined) {
+    if (body.birthDate !== '' && (typeof body.birthDate !== 'string' || !ISO_DATE.test(body.birthDate) ||
+        Number.isNaN(Date.parse(body.birthDate)) || body.birthDate > new Date().toISOString().slice(0, 10))) {
+      return { error: 'Please enter a valid date of birth' };
+    }
+    input.birthDate = body.birthDate;
+  }
+  if (body.gender !== undefined) {
+    if (!GENDERS.includes(body.gender)) return { error: 'Please choose an option for gender' };
+    input.gender = body.gender;
+  }
+  for (const key of ['emailReminders', 'emailPromotions']) {
+    if (body[key] !== undefined) {
+      if (typeof body[key] !== 'boolean') return { error: `${key} must be true or false` };
+      input[key] = body[key];
+    }
+  }
+  return { input };
+}
+
+app.get('/api/me/profile', requireUser, async (req, res, next) => {
+  try {
+    await usersRepo.upsert(pool, { email: req.userEmail });
+    res.json({ profile: await usersRepo.getProfile(pool, req.userEmail) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/me/profile', requireUser, async (req, res, next) => {
+  try {
+    const { input, error } = parseProfileInput(req.body ?? {});
+    if (error) return res.status(400).json({ error });
+    await usersRepo.upsert(pool, { email: req.userEmail });
+    res.json({ profile: await usersRepo.updateProfile(pool, req.userEmail, input) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/me/bookings', requireUser, async (req, res, next) => {
+  try {
+    res.json({ bookings: await bookingsRepo.getForClient(pool, req.userEmail) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/me/bookings/:id/cancel', requireUser, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const outcome = await bookingsRepo.cancelForClient(pool, Number(req.params.id), req.userEmail);
+    if (outcome === 'not-found') return res.status(404).json({ error: 'Booking not found' });
+    if (outcome === 'too-late') {
+      return res.status(409).json({ error: 'This booking can no longer be cancelled online. Cancellations close 12 hours before class; please message the studio.' });
+    }
+    res.json({ status: 'cancelled' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Packages: the catalog is public; buying one needs an account, and the admin
+// activates it once the payment is checked.
+app.get('/api/packages', (req, res) => {
+  res.json({ packages: PACKAGES });
+});
+
+app.get('/api/me/packages', requireUser, async (req, res, next) => {
+  try {
+    res.json({ packages: await packagesRepo.getForClient(pool, req.userEmail) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/me/packages', requireUser, async (req, res, next) => {
+  try {
+    const pkg = findPackage(req.body?.packageId);
+    if (!pkg) return res.status(400).json({ error: 'That package does not exist' });
+    const referenceId = typeof req.body?.referenceId === 'string' ? req.body.referenceId.trim() : '';
+    if (!referenceId || referenceId.length > 60) {
+      return res.status(400).json({ error: 'Please enter the reference number from your payment' });
+    }
+    await usersRepo.upsert(pool, { email: req.userEmail });
+    res.status(201).json(await packagesRepo.create(pool, req.userEmail, pkg, referenceId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/package-purchases', requireAdmin, async (req, res, next) => {
+  try {
+    res.json({ purchases: await packagesRepo.getAll(pool) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/package-purchases/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Purchase not found' });
+    const status = req.body?.status;
+    if (!['active', 'rejected'].includes(status)) return res.status(400).json({ error: 'status must be active or rejected' });
+    const purchase = await packagesRepo.setStatus(pool, Number(req.params.id), status);
+    if (!purchase) return res.status(409).json({ error: 'This purchase has already been handled.' });
+
+    if (status === 'active') {
+      try {
+        await sendPackageActivated(purchase);
+        purchase.emailed = true;
+      } catch (error) {
+        console.error(`Package email for purchase ${purchase.id} failed:`, error.message);
+        purchase.emailed = false;
+      }
+    }
+    res.json(purchase);
   } catch (error) {
     next(error);
   }

@@ -89,3 +89,58 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE UNIQUE INDEX IF NOT EXISTS bookings_class_spot_idx
   ON bookings (class_id, spot)
   WHERE status <> 'rejected';
+
+-- ---------------------------------------------------------------------------
+-- Changes made after the first release. Each is safe to run again, so running
+-- this whole file brings an existing database up to date.
+-- ---------------------------------------------------------------------------
+
+-- The client's own profile and email choices, edited from their account page.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone            TEXT    NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date       DATE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS gender           TEXT    NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS address          TEXT    NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_reminders  BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_promotions BOOLEAN NOT NULL DEFAULT false;
+
+-- Clients can cancel their own booking, which frees the spot like a rejection.
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
+ALTER TABLE bookings ADD CONSTRAINT bookings_status_check
+  CHECK (status IN ('pending', 'confirmed', 'rejected', 'cancelled'));
+
+DROP INDEX IF EXISTS bookings_class_spot_idx;
+CREATE UNIQUE INDEX IF NOT EXISTS bookings_class_spot_idx
+  ON bookings (class_id, spot)
+  WHERE status NOT IN ('rejected', 'cancelled');
+
+-- Packages a client has bought. The package's details are copied in at
+-- purchase so later price changes never alter what a client paid for. A
+-- purchase is 'pending' until the admin checks the payment; its expiry clock
+-- starts when it becomes 'active'.
+CREATE TABLE IF NOT EXISTS user_packages (
+  id               SERIAL PRIMARY KEY,
+  user_email       TEXT        NOT NULL REFERENCES users (email),
+  package_id       TEXT        NOT NULL,
+  name             TEXT        NOT NULL,
+  price            TEXT        NOT NULL,
+  reformer_credits INTEGER     NOT NULL DEFAULT 0,
+  mat_credits      INTEGER     NOT NULL DEFAULT 0,
+  group_credits    INTEGER     NOT NULL DEFAULT 0,
+  private_credits  INTEGER     NOT NULL DEFAULT 0,
+  clinical_credits INTEGER     NOT NULL DEFAULT 0,
+  expiry_days      INTEGER     NOT NULL CHECK (expiry_days > 0),
+  reference_id     TEXT        NOT NULL,
+  status           TEXT        NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'active', 'rejected')),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  activated_at     TIMESTAMPTZ,
+  expires_at       TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS user_packages_user_email_idx ON user_packages (user_email);
+
+-- A booking paid for with a package credit records which package and which
+-- kind of credit it used. Credits left = credits bought minus the bookings
+-- still holding one, so a cancelled or rejected booking gives its credit back.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_package_id INTEGER REFERENCES user_packages (id);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS credit_type TEXT;

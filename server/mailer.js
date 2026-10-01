@@ -100,6 +100,22 @@ export function sendConfirmation(recipient) {
   })
 }
 
+// '2026-11-30T08:00:00Z' -> 'Monday, November 30' in the studio's timezone.
+const formatMoment = (moment) =>
+  new Date(moment).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Asia/Manila',
+  })
+
+export function sendPackageActivated(purchase) {
+  return sendMail({
+    to: purchase.clientEmail,
+    subject: `Your package is active: ${purchase.name}`,
+    html: layout('Your package is ready to use', `
+      <p>Hi ${escapeHtml(purchase.clientName || 'there')}, we have verified your payment for <strong>${escapeHtml(purchase.name)}</strong>.</p>
+      <p>It is valid until ${formatMoment(purchase.expiresAt)}. Choose "Current Packages" when you book a class to use a credit.</p>`),
+  })
+}
+
 export function sendCancellation(recipient) {
   return sendMail({
     to: recipient.email,

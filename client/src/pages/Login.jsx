@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/organisms/Navbar';
 import Footer from '../components/organisms/Footer';
 import { API_BASE } from '../api/base';
@@ -18,8 +18,19 @@ export default function Login() {
     setFormData({...formData, [e.target.name]: e.target.value});
   };
 
+  // Where the visitor was heading before being asked to sign in. The emailed
+  // link opens in a new tab, so it is kept in storage for Verify to pick up.
+  const location = useLocation();
+  const returnTo = location.state?.from;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    try {
+      if (returnTo) localStorage.setItem('revive:returnTo', returnTo);
+      else localStorage.removeItem('revive:returnTo');
+    } catch {
+      // Without storage the link simply lands on the dashboard.
+    }
     setLoading(true);
     setStatus('');
     setPreviewUrl('');

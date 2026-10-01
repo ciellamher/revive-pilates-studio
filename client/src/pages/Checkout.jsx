@@ -2,16 +2,16 @@ import Navbar from '../components/organisms/Navbar';
 import ReservationSelector from '../components/organisms/ReservationSelector';
 import SpotSelectorMap from '../components/organisms/SpotSelectorMap';
 import { Link, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, User, Ticket } from 'lucide-react';
 import PaymentUploadPanel from '../components/organisms/PaymentUploadPanel';
-import { API_BASE } from '../api/base';
+import { API_BASE, apiFetch } from '../api/base';
+import { creditTypesForClass, creditLabel } from '../api/packages';
 import { useAuth } from '../contexts/AuthContext';
 import classPreviewImg from '../assets/revive-photos/reformer_11.jpg';
 
 export default function Checkout() {
   const [selectedPricing, setSelectedPricing] = useState(null);
-  const [hasPackages, setHasPackages] = useState(false);
   
   const location = useLocation();
   const { 
@@ -37,6 +37,50 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [booking, setBooking] = useState(null);
+
+  // Packages with a credit this class can use.
+  const [myPackages, setMyPackages] = useState(null);
+  const [selectedPackageId, setSelectedPackageId] = useState(null);
+  const [packageError, setPackageError] = useState('');
+  const [usingCredit, setUsingCredit] = useState(false);
+  const classCreditTypes = creditTypesForClass(title);
+  const creditsLeftFor = (purchase) => classCreditTypes.reduce((sum, type) => sum + (purchase.credits[type]?.left ?? 0), 0);
+
+  useEffect(() => {
+    if (!user) return;
+    apiFetch('/api/me/packages')
+      .then(res => (res.ok ? res.json() : Promise.reject(new Error('Could not load your packages'))))
+      .then(data => {
+        const usable = data.packages.filter(p => p.status === 'active' && classCreditTypes.some(type => (p.credits[type]?.left ?? 0) > 0));
+        setMyPackages(usable);
+        setSelectedPackageId(usable[0]?.id ?? null);
+      })
+      .catch(err => setPackageError(err.message));
+    // classCreditTypes is derived from the title, which does not change on this page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleUseCredit = async () => {
+    if (!classId) return setPackageError('Please choose a class from the timetable first.');
+    if (!selectedSpot) return setPackageError('Please select your spot.');
+    if (!selectedPackageId) return setPackageError('Please choose a package.');
+    setUsingCredit(true);
+    setPackageError('');
+    try {
+      const res = await apiFetch('/api/bookings', {
+        method: 'POST',
+        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, clientName: attendeeName })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Something went wrong. Please try again.');
+      setBooking(data);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      setPackageError(err.message);
+    } finally {
+      setUsingCredit(false);
+    }
+  };
 
   // '2026-10-01' -> 'Thu, 1 Oct 2026', built from its parts so the day cannot
   // shift with the visitor's timezone.
@@ -119,12 +163,20 @@ export default function Checkout() {
           <div className="flex-1">
             <section role="status" className="border border-brand-sand/50 rounded-xl p-8 bg-white shadow-sm">
               <h2 className="text-2xl font-serif font-bold text-brand-dark mb-3">Booking received</h2>
-              <p className="text-brand-dark/80 mb-2">
-                Thanks, {booking.clientName}. Spot {booking.spot} in {booking.className} is held for you while the studio verifies your payment.
-              </p>
-              <p className="text-brand-dark/80 mb-6">
-                Once it is confirmed, we will email a reminder to <strong className="text-brand-dark">{attendeeEmail.trim()}</strong> about 12 hours before your class.
-              </p>
+              {booking.status === 'confirmed' ? (
+                <p className="text-brand-dark/80 mb-6">
+                  You're booked, {booking.clientName}: spot {booking.spot} in {booking.className}, paid with 1 package credit. We've emailed your confirmation and will send a reminder about 12 hours before class.
+                </p>
+              ) : (
+                <>
+                  <p className="text-brand-dark/80 mb-2">
+                    Thanks, {booking.clientName}. Spot {booking.spot} in {booking.className} is held for you while the studio verifies your payment.
+                  </p>
+                  <p className="text-brand-dark/80 mb-6">
+                    Once it is confirmed, we will email a reminder to <strong className="text-brand-dark">{attendeeEmail.trim()}</strong> about 12 hours before your class.
+                  </p>
+                </>
+              )}
               <p className="text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-6">Booking ID {booking.id}</p>
               <Link to="/book" className="inline-block bg-brand-brown text-white px-6 py-3 rounded-xl font-bold hover:bg-brand-dark transition-colors">Back to timetable</Link>
             </section>
@@ -212,37 +264,69 @@ export default function Checkout() {
               <section className="animate-fade-in bg-white border border-brand-sand/50 rounded-xl p-6 shadow-sm">
                 <h3 className="font-bold text-brand-dark mb-4">Your Active Packages</h3>
                 
-                {hasPackages ? (
+                {!user ? (
+                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center border-2 border-dashed border-brand-sand/50 rounded-xl bg-brand-sand/10">
+                    <Ticket size={48} className="text-brand-dark/20 mb-4" />
+                    <p className="font-bold text-brand-dark mb-2">Sign in to use your packages</p>
+                    <p className="text-sm text-brand-dark/70 mb-6">After signing in, pick this class from the schedule again.</p>
+                    <Link to="/login" className="bg-brand-brown text-white px-6 py-2.5 rounded-xl font-bold hover:bg-brand-dark transition-colors shadow-sm">Sign in</Link>
+                  </div>
+                ) : myPackages === null && !packageError ? (
+                  <p className="text-sm text-brand-dark/50 font-medium py-6">Loading your packages…</p>
+                ) : myPackages?.length > 0 ? (
                   <>
-                    <div className="border-2 border-brand-brown rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-brand-sand/10 cursor-pointer hover:bg-brand-sand/20 transition-colors">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">Active</span>
-                          <span className="font-bold text-brand-dark">10-Class Reformer Package</span>
-                        </div>
-                        <p className="text-sm text-brand-dark/70">4 classes left • Expires Nov 20, 2026</p>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold text-brand-dark/60">-1 credit</span>
-                        <div className="w-6 h-6 rounded-full border-2 border-brand-brown flex items-center justify-center bg-brand-brown">
-                          <div className="w-2.5 h-2.5 rounded-full bg-white"></div>
-                        </div>
-                      </div>
+                    <div role="radiogroup" aria-label="Package to use" className="space-y-3">
+                      {myPackages.map((p) => {
+                        const selected = selectedPackageId === p.id;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() => setSelectedPackageId(p.id)}
+                            className={`w-full text-left border-2 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors ${selected ? 'border-brand-brown bg-brand-sand/10' : 'border-brand-sand/50 hover:bg-brand-sand/10'}`}
+                          >
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">Active</span>
+                                <span className="font-bold text-brand-dark">{p.name}</span>
+                              </div>
+                              <p className="text-sm text-brand-dark/70">
+                                {classCreditTypes.filter(type => p.credits[type]).map(type => `${p.credits[type].left} ${creditLabel(type).toLowerCase()} left`).join(' • ')}
+                                {' • '}Valid until {new Date(p.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-sm font-bold text-brand-dark/60">-1 credit</span>
+                              <span className={`w-6 h-6 rounded-full border-2 border-brand-brown flex items-center justify-center ${selected ? 'bg-brand-brown' : ''}`}>
+                                {selected && <span className="w-2.5 h-2.5 rounded-full bg-white"></span>}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
 
+                    {packageError && <p role="alert" className="mt-4 text-sm font-medium text-[#E02424]">{packageError}</p>}
+
                     <div className="mt-6 flex justify-end">
-                      <button className="bg-brand-brown text-white px-8 py-3 rounded-xl font-bold hover:bg-brand-dark transition-colors shadow-sm">
-                        Confirm Booking (Use 1 Credit)
+                      <button
+                        type="button"
+                        onClick={handleUseCredit}
+                        disabled={usingCredit || creditsLeftFor(myPackages.find(p => p.id === selectedPackageId) ?? { credits: {} }) === 0}
+                        className="w-full sm:w-auto bg-brand-brown text-white px-8 py-3 rounded-xl font-bold hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-60"
+                      >
+                        {usingCredit ? 'Booking…' : 'Confirm Booking (Use 1 Credit)'}
                       </button>
                     </div>
                   </>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-10 px-4 text-center border-2 border-dashed border-brand-sand/50 rounded-xl bg-brand-sand/10">
                     <Ticket size={48} className="text-brand-dark/20 mb-4" />
-                    <p className="font-bold text-brand-dark mb-2">No active packages found</p>
-                    <p className="text-sm text-brand-dark/70 mb-6">You don't have any class credits available right now.</p>
-                    <Link to="/packages" className="bg-brand-brown text-white px-6 py-2.5 rounded-xl font-bold hover:bg-brand-dark transition-colors shadow-sm">
+                    <p className="font-bold text-brand-dark mb-2">No packages with credits for this class</p>
+                    <p className="text-sm text-brand-dark/70 mb-6">{packageError || 'Packages you buy appear here once the studio activates them.'}</p>
+                    <Link to="/pricing" className="bg-brand-brown text-white px-6 py-2.5 rounded-xl font-bold hover:bg-brand-dark transition-colors shadow-sm">
                       View & Buy Packages
                     </Link>
                   </div>

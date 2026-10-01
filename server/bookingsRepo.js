@@ -125,6 +125,8 @@ export async function getDueReminders(pool, hours) {
      WHERE b.status = 'confirmed'
        AND b.reminder_sent_at IS NULL
        AND NOT c.is_cancelled
+       -- Clients can switch reminders off in their account. No account means on.
+       AND COALESCE((SELECT email_reminders FROM users WHERE email = b.client_email), true)
        AND ${CLASS_START} > now()
        AND ${CLASS_START} <= now() + make_interval(hours => $1)
      ORDER BY b.id`,
@@ -149,12 +151,55 @@ export async function releaseReminder(pool, bookingId) {
   await pool.query('UPDATE bookings SET reminder_sent_at = NULL WHERE id = $1', [bookingId])
 }
 
+// A client's own bookings, newest class first, for their account page.
+// can_cancel follows the studio policy: up to 12 hours before the class.
+export async function getForClient(pool, email) {
+  const result = await pool.query(
+    `SELECT ${BOOKING_WITH_CLASS}, b.created_at, c.duration_min, c.is_cancelled,
+            ${CLASS_START} > now() AS is_upcoming,
+            (${CLASS_START} > now() + interval '12 hours'
+              AND b.status IN ('pending', 'confirmed')
+              AND NOT c.is_cancelled) AS can_cancel
+     FROM bookings b JOIN classes c ON c.id = b.class_id
+     WHERE b.client_email = $1
+     ORDER BY c.class_date DESC, b.id DESC`,
+    [email]
+  )
+  return result.rows.map((row) => ({
+    ...toBooking(row),
+    instructor: row.instructor,
+    duration: `${row.duration_min} min`,
+    bookedAt: row.created_at,
+    classCancelled: row.is_cancelled,
+    isUpcoming: row.is_upcoming,
+    canCancel: row.can_cancel,
+  }))
+}
+
+// Cancels a client's own booking if the policy still allows it. Returns
+// 'cancelled', 'not-found' (not theirs, or no such booking) or 'too-late'.
+export async function cancelForClient(pool, id, email) {
+  const result = await pool.query(
+    `UPDATE bookings b SET status = 'cancelled'
+     FROM classes c
+     WHERE b.id = $1 AND b.client_email = $2 AND c.id = b.class_id
+       AND b.status IN ('pending', 'confirmed')
+       AND NOT c.is_cancelled
+       AND ${CLASS_START} > now() + interval '12 hours'
+     RETURNING b.id`,
+    [id, email]
+  )
+  if (result.rowCount > 0) return 'cancelled'
+  const owned = await pool.query('SELECT 1 FROM bookings WHERE id = $1 AND client_email = $2', [id, email])
+  return owned.rowCount > 0 ? 'too-late' : 'not-found'
+}
+
 // Everyone who should hear that a class was cancelled.
 export async function getRecipientsForClass(pool, classId) {
   const result = await pool.query(
     `SELECT ${BOOKING_WITH_CLASS}
      FROM bookings b JOIN classes c ON c.id = b.class_id
-     WHERE b.class_id = $1 AND b.status <> 'rejected'
+     WHERE b.class_id = $1 AND b.status NOT IN ('rejected', 'cancelled')
      ORDER BY b.id`,
     [classId]
   )

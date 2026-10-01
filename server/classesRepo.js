@@ -5,15 +5,15 @@
 // on the way out: a DATE has no timezone, and converting it would shift the day
 // on a server that is not in the studio's timezone.
 //
-// taken_spots is the spot numbers already held in this class. A rejected
-// booking does not hold its spot.
+// taken_spots is the spot numbers already held in this class. A rejected or
+// cancelled booking does not hold its spot.
 const COLUMNS = `
   id, title, to_char(class_date, 'YYYY-MM-DD') AS date, start_time,
   duration_min, coach_id, branch, capacity, is_cancelled,
   (SELECT name FROM coaches WHERE id = classes.coach_id) AS instructor,
   ARRAY(
     SELECT spot FROM bookings
-    WHERE class_id = classes.id AND status <> 'rejected'
+    WHERE class_id = classes.id AND status NOT IN ('rejected', 'cancelled')
     ORDER BY spot
   ) AS taken_spots`
 

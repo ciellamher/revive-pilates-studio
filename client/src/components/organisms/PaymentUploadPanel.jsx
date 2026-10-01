@@ -1,6 +1,6 @@
 import { UploadCloud } from 'lucide-react';
 
-export default function PaymentUploadPanel({ referenceId = '', onReferenceChange = () => {}, onSubmit = () => {}, submitting = false, error = '' }) {
+export default function PaymentUploadPanel({ referenceId = '', onReferenceChange = () => {}, onSubmit = () => {}, submitting = false, error = '', submitLabel = 'Submit Booking' }) {
   return (
     <div className="bg-white rounded-2xl p-6 border border-brand-sand/30 shadow-sm space-y-6">
       <h3 className="font-serif text-2xl font-bold text-brand-dark">Payment Details</h3>
@@ -80,7 +80,7 @@ export default function PaymentUploadPanel({ referenceId = '', onReferenceChange
         disabled={submitting}
         className="w-full bg-brand-brown text-white py-4 rounded-xl font-medium text-lg hover:bg-brand-dark transition-colors shadow-md disabled:opacity-60"
       >
-        {submitting ? 'Submitting…' : 'Submit Booking'}
+        {submitting ? 'Submitting…' : submitLabel}
       </button>
     </div>
   );
