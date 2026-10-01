@@ -148,6 +148,27 @@ export function sendPackageActivated(purchase) {
   })
 }
 
+export function sendPaymentRejected(recipient) {
+  return sendMail({
+    to: recipient.email,
+    subject: `We couldn't verify your payment: ${recipient.title} on ${formatDate(recipient.date)}`,
+    html: layout('We could not verify your payment', `
+      <p>Hi ${escapeHtml(recipient.name)}, we could not match your payment for this booking, so your spot has been released.</p>
+      ${classDetails(recipient)}
+      <p>If you did pay, please reply to this email with your receipt and we will sort it out.</p>`),
+  })
+}
+
+export function sendPackageRejected(purchase) {
+  return sendMail({
+    to: purchase.clientEmail,
+    subject: `We couldn't verify your payment: ${purchase.name}`,
+    html: layout('We could not verify your payment', `
+      <p>Hi ${escapeHtml(purchase.clientName || 'there')}, we could not match your payment for <strong>${escapeHtml(purchase.name)}</strong> (reference ${escapeHtml(purchase.referenceId)}).</p>
+      <p>If you did pay, please reply to this email with your receipt and we will sort it out.</p>`),
+  })
+}
+
 export function sendBookingCancelled(recipient) {
   return sendMail({
     to: recipient.email,

@@ -169,7 +169,7 @@ export async function releaseReminder(pool, bookingId) {
 // can_cancel follows the studio policy: up to 12 hours before the class.
 export async function getForClient(pool, email) {
   const result = await pool.query(
-    `SELECT ${BOOKING_WITH_CLASS}, b.created_at, c.duration_min, c.is_cancelled,
+    `SELECT ${BOOKING_WITH_CLASS}, b.created_at, c.id AS class_id, c.duration_min, c.is_cancelled,
             ${CLASS_START} > now() AS is_upcoming,
             (${CLASS_START} > now() + interval '12 hours'
               AND b.status IN ('pending', 'confirmed')
@@ -181,6 +181,7 @@ export async function getForClient(pool, email) {
   )
   return result.rows.map((row) => ({
     ...toBooking(row),
+    classId: String(row.class_id),
     instructor: row.instructor,
     duration: `${row.duration_min} min`,
     bookedAt: row.created_at,

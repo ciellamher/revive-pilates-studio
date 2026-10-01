@@ -6,6 +6,7 @@ import { API_BASE, apiFetch } from '../../api/base';
 import { checkoutClassState, showsAsPrivate, privateFilterState } from '../../api/checkoutState';
 import { CLASS_TYPES, isPrivateType, priceFor } from '../../api/classTypes';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotify } from '../Notifications';
 import { DAY_START, DAY_END, labelToMinutes, minutesToLabel, durationOf, shortLabel } from '../../api/time';
 
 const getWeekDays = (weeksOffset = 0) => {
@@ -192,7 +193,7 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
   const dragRef = useRef(null);
   const [drag, setDrag] = useState(null);
   const [dragError, setDragError] = useState('');
-  const [dragNotice, setDragNotice] = useState('');
+  const { toast } = useNotify();
   // A dropped class waiting for the admin to confirm the change.
   const [pendingMove, setPendingMove] = useState(null);
   const [savingMove, setSavingMove] = useState(false);
@@ -209,10 +210,10 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
       const res = await apiFetch(`/api/classes/${cls.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Request failed');
-      setDragNotice(data?.notified
+      if (data?.notifyFailed) toast(`${cls.title} moved, but ${data.notifyFailed} email${data.notifyFailed === 1 ? '' : 's'} could not be sent. Please tell those clients yourself.`, { type: 'error' });
+      else toast(data?.notified
         ? `${cls.title} moved. ${data.notified} booked ${data.notified === 1 ? 'client was' : 'clients were'} emailed the new time.`
         : `${cls.title} moved.`);
-      if (data?.notifyFailed) setDragError(`${data.notifyFailed} email${data.notifyFailed === 1 ? '' : 's'} could not be sent. Please tell those clients yourself.`);
     } catch (err) {
       setClasses(before);
       setDragError(`Could not move the class: ${err.message}`);
@@ -298,7 +299,6 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
         ...(changes.duration ? { duration: `${changes.duration} min` } : {}),
       })));
       setDragError('');
-      setDragNotice('');
       setPendingMove({
         cls,
         changes,
@@ -554,7 +554,6 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
         )}
 
         {dragError && <p role="alert" className="mb-4 text-sm font-medium text-[#E02424]">{dragError}</p>}
-        {dragNotice && <p role="status" className="mb-4 text-sm font-medium text-green-700">{dragNotice}</p>}
 
         {/* Mobile/Tablet Schedule List (Visible on < lg screens, or always if view === 'list') */}
         <div className={`${view === 'list' ? 'flex' : 'lg:hidden flex'} flex-col gap-4 pb-8`}>

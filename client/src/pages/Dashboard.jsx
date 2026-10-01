@@ -8,6 +8,7 @@ import Footer from '../components/organisms/Footer';
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch, readSession } from '../api/base';
 import { creditLabel } from '../api/packages';
+import { useNotify } from '../components/Notifications';
 
 const MENU_ITEMS = [
   { id: 'profile', label: 'My profile', icon: User },
@@ -74,6 +75,7 @@ function Toggle({ id, checked, onChange, disabled }) {
 
 export default function Dashboard() {
   const { user, login } = useAuth();
+  const { confirm, toast } = useNotify();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = MENU_ITEMS.some(item => item.id === searchParams.get('tab')) ? searchParams.get('tab') : 'profile';
   const setActiveTab = (tab) => setSearchParams({ tab }, { replace: true });
@@ -176,13 +178,20 @@ export default function Dashboard() {
   };
 
   const handleCancelBooking = async (booking) => {
-    if (!window.confirm(`Cancel your spot in ${booking.className} on ${formatDate(booking.date)} at ${booking.time}?`)) return;
+    if (!(await confirm({
+      title: 'Cancel this booking?',
+      message: `${booking.className} on ${formatDate(booking.date)} at ${booking.time}. Your spot will be given up${booking.amount === '1 credit' ? ' and the package credit returned' : ''}.`,
+      confirmLabel: 'Cancel booking',
+      cancelLabel: 'Keep booking',
+      tone: 'danger',
+    }))) return;
     setCancellingId(booking.id);
     setScheduleError('');
     try {
       const res = await apiFetch(`/api/me/bookings/${booking.id}/cancel`, { method: 'POST' });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Could not cancel the booking');
       await loadBookings();
+      toast('Your booking is cancelled.');
     } catch (err) {
       setScheduleError(err.message);
     } finally {

@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiFetch, API_BASE } from '../../api/base';
-import { labelToMinutes } from '../../api/time';
+import { apiFetch } from '../../api/base';
+import { useNotify } from '../Notifications';
+import MoveBookingDialog from './MoveBookingDialog';
 
 const STATUS = {
   pending: ['Checking payment', 'bg-amber-50 text-amber-700'],
   confirmed: ['Confirmed', 'bg-green-50 text-green-700'],
   rejected: ['Rejected', 'bg-red-50 text-red-700'],
   cancelled: ['Cancelled', 'bg-black/5 text-brand-dark/60'],
-};
-
-const shortDate = (iso) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
 // Everyone booked in one class, inside the admin's class editor: check
@@ -22,9 +18,8 @@ export default function AdminClassRoster({ cls, onChanged }) {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [openReceipt, setOpenReceipt] = useState(null); // { id, src }
-  const [moving, setMoving] = useState(null); // booking id with the move picker open
-  const [moveTo, setMoveTo] = useState('');
-  const [targets, setTargets] = useState([]);
+  const [moving, setMoving] = useState(null); // the booking being moved
+  const { confirm, toast } = useNotify();
 
   const load = useCallback(() => {
     apiFetch(`/api/classes/${cls.id}/bookings`)
@@ -38,27 +33,17 @@ export default function AdminClassRoster({ cls, onChanged }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Classes a booking can move to: upcoming, not cancelled, same branch, with room.
-  useEffect(() => {
-    fetch(`${API_BASE}/api/classes`)
-      .then(res => res.json())
-      .then(data => setTargets((data.classes ?? [])
-        .filter(c => c.id !== cls.id && c.branch === cls.branch && !c.isCancelled && !c.isDone && !c.isFull)
-        .sort((a, b) => a.date.localeCompare(b.date) || (labelToMinutes(a.time) ?? 0) - (labelToMinutes(b.time) ?? 0))))
-      .catch(() => setTargets([]));
-  }, [cls.id, cls.branch]);
-
-  const act = async (booking, request, confirmText) => {
-    if (confirmText && !window.confirm(confirmText)) return;
+  // `ask` is a confirmation dialog to show first; `done` is the message after.
+  const act = async (booking, request, { ask, done }) => {
+    if (ask && !(await confirm(ask))) return;
     setError('');
     setBusyId(booking.id);
     try {
       const res = await apiFetch(request.path, { method: request.method, body: JSON.stringify(request.body) });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Request failed');
-      const emailed = data?.emailed ?? data?.booking?.emailed;
-      if (emailed === false) window.alert('Saved, but the email to the client could not be sent. Please let them know yourself.');
-      setMoving(null);
+      if (data?.emailed === false) toast(`${done} The email to ${booking.clientName} could not be sent, so please let them know yourself.`, { type: 'error' });
+      else toast(`${done}${data?.emailed ? ` ${booking.clientName} has been emailed.` : ''}`);
       load();
       onChanged();
     } catch (err) {
@@ -68,7 +53,7 @@ export default function AdminClassRoster({ cls, onChanged }) {
     }
   };
 
-  const setStatus = (b, status, confirmText) => act(b, { path: `/api/bookings/${b.id}`, method: 'PATCH', body: { status } }, confirmText);
+  const setStatus = (b, status, messages) => act(b, { path: `/api/bookings/${b.id}`, method: 'PATCH', body: { status } }, messages);
 
   const toggleReceipt = (b) => {
     if (openReceipt?.id === b.id) return setOpenReceipt(null);
@@ -117,8 +102,11 @@ export default function AdminClassRoster({ cls, onChanged }) {
                   <div className="flex flex-wrap gap-2 mt-2">
                     {b.status === 'pending' && (
                       <>
-                        <button type="button" disabled={busy} onClick={() => setStatus(b, 'confirmed')} className={`${small} bg-brand-dark text-white hover:bg-black`}>Confirm payment</button>
-                        <button type="button" disabled={busy} onClick={() => setStatus(b, 'rejected', `Reject ${b.clientName}'s payment? Their spot will be freed.`)} className={`${small} border border-[#ffb3b3] text-[#E02424] hover:bg-[#fff5f5]`}>Reject</button>
+                        <button type="button" disabled={busy} onClick={() => setStatus(b, 'confirmed', { done: `Payment confirmed for ${b.clientName}.` })} className={`${small} bg-brand-dark text-white hover:bg-black`}>Confirm payment</button>
+                        <button type="button" disabled={busy} onClick={() => setStatus(b, 'rejected', {
+                          ask: { title: 'Reject this payment?', message: `${b.clientName}'s booking will be rejected and their spot freed. They will be emailed that the payment could not be verified.`, confirmLabel: 'Reject payment', tone: 'danger' },
+                          done: `Payment rejected for ${b.clientName}.`,
+                        })} className={`${small} border border-[#ffb3b3] text-[#E02424] hover:bg-[#fff5f5]`}>Reject</button>
                       </>
                     )}
                     {b.hasReceipt && (
@@ -126,8 +114,11 @@ export default function AdminClassRoster({ cls, onChanged }) {
                         {openReceipt?.id === b.id ? 'Hide receipt' : 'Receipt'}
                       </button>
                     )}
-                    <button type="button" disabled={busy} onClick={() => { setMoving(moving === b.id ? null : b.id); setMoveTo(''); }} className={`${small} border border-brand-sand text-brand-dark hover:bg-black/5`}>Move</button>
-                    <button type="button" disabled={busy} onClick={() => setStatus(b, 'cancelled', `Cancel ${b.clientName}'s booking? They will be emailed.`)} className={`${small} border border-[#ffb3b3] text-[#E02424] hover:bg-[#fff5f5]`}>Cancel booking</button>
+                    <button type="button" disabled={busy} onClick={() => setMoving(b)} className={`${small} border border-brand-sand text-brand-dark hover:bg-black/5`}>Move</button>
+                    <button type="button" disabled={busy} onClick={() => setStatus(b, 'cancelled', {
+                      ask: { title: 'Cancel this booking?', message: `${b.clientName}'s spot in this class will be freed, and they will be emailed.`, confirmLabel: 'Cancel booking', cancelLabel: 'Keep booking', tone: 'danger' },
+                      done: `Booking cancelled for ${b.clientName}.`,
+                    })} className={`${small} border border-[#ffb3b3] text-[#E02424] hover:bg-[#fff5f5]`}>Cancel booking</button>
                   </div>
                 )}
 
@@ -137,36 +128,25 @@ export default function AdminClassRoster({ cls, onChanged }) {
                   </div>
                 )}
 
-                {moving === b.id && (
-                  <div className="mt-2 flex flex-col sm:flex-row gap-2">
-                    <label className="sr-only" htmlFor={`move-${b.id}`}>Move to class</label>
-                    <select
-                      id={`move-${b.id}`}
-                      value={moveTo}
-                      onChange={(e) => setMoveTo(e.target.value)}
-                      className="flex-1 min-w-0 border border-brand-sand/50 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-brand-brown"
-                    >
-                      <option value="">Choose a class…</option>
-                      {targets.map(t => (
-                        <option key={t.id} value={t.id}>
-                          {shortDate(t.date)} · {t.time} · {t.title} · {t.instructor} ({Math.max(0, t.capacity - (t.takenSpots?.length ?? 0))} left)
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      disabled={!moveTo || busy}
-                      onClick={() => act(b, { path: `/api/bookings/${b.id}/move`, method: 'POST', body: { classId: Number(moveTo) } })}
-                      className={`${small} py-2 bg-brand-dark text-white hover:bg-black`}
-                    >
-                      {busy ? 'Moving…' : 'Move booking'}
-                    </button>
-                  </div>
-                )}
               </li>
             );
           })}
         </ul>
+      )}
+      {moving && (
+        <MoveBookingDialog
+          booking={moving}
+          fromClass={cls}
+          onClose={() => setMoving(null)}
+          onMoved={({ target, emailed }) => {
+            const where = `${target.title} on ${target.date} at ${target.time}`;
+            if (emailed === false) toast(`${moving.clientName} moved to ${where}. The email could not be sent, so please let them know yourself.`, { type: 'error' });
+            else toast(`${moving.clientName} moved to ${where} and emailed the new time.`);
+            setMoving(null);
+            load();
+            onChanged();
+          }}
+        />
       )}
     </section>
   );

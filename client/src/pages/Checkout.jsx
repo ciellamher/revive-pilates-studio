@@ -9,6 +9,7 @@ import { apiFetch } from '../api/base';
 import { creditTypesForClass, creditLabel } from '../api/packages';
 import { priceFor } from '../api/classTypes';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotify } from '../components/Notifications';
 import classPreviewImg from '../assets/revive-photos/reformer_11.jpg';
 
 // Kept in localStorage, not sessionStorage: a visitor who must sign in first
@@ -63,6 +64,28 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [booking, setBooking] = useState(null);
+  const { confirm } = useNotify();
+
+  // The client's own active booking in this class, if they already have one.
+  const [existingBooking, setExistingBooking] = useState(null);
+  useEffect(() => {
+    if (!user || !classId) return;
+    apiFetch('/api/me/bookings')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => setExistingBooking(data?.bookings?.find(b => b.classId === String(classId) && ['pending', 'confirmed'].includes(b.status)) ?? null))
+      .catch(() => {});
+  }, [user, classId]);
+
+  // Booking the same class twice is allowed (say, for a friend) but asked about.
+  const okToBookAgain = async () => {
+    if (!existingBooking) return true;
+    return confirm({
+      title: 'You already booked this class',
+      message: `You have ${existingBooking.isPrivate ? 'a private session' : `spot ${existingBooking.spot}`} here (${existingBooking.status === 'confirmed' ? 'confirmed' : 'payment being checked'}). Book another spot anyway?`,
+      confirmLabel: 'Book another spot',
+      cancelLabel: 'No, go back',
+    });
+  };
 
   // Packages with a credit this class can use.
   const [myPackages, setMyPackages] = useState(null);
@@ -91,6 +114,7 @@ export default function Checkout() {
     if (!classId) return setPackageError('Please choose a class from the timetable first.');
     if (!isPrivate && !selectedSpot) return setPackageError('Please select your spot.');
     if (!selectedPackageId) return setPackageError('Please choose a package.');
+    if (!(await okToBookAgain())) return;
     setUsingCredit(true);
     setPackageError('');
     try {
@@ -135,6 +159,7 @@ export default function Checkout() {
     if (!attendeeName.trim()) return setSubmitError('Please enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attendeeEmail.trim())) return setSubmitError('Please enter a valid email address.');
     if (!isPrivate && !selectedSpot) return setSubmitError('Please select your spot.');
+    if (!(await okToBookAgain())) return;
 
     setSubmitting(true);
     setSubmitError('');
@@ -219,6 +244,12 @@ export default function Checkout() {
           ) : (
           <div className="flex-1 flex flex-col gap-10">
             
+            {existingBooking && (
+              <div role="status" className="border border-amber-200 bg-amber-50 text-amber-800 rounded-xl px-4 py-3 text-sm">
+                You're already booked in this class ({existingBooking.isPrivate ? 'private session' : `spot ${existingBooking.spot}`}, {existingBooking.status === 'confirmed' ? 'confirmed' : 'payment being checked'}). You can still book another spot.
+              </div>
+            )}
+
             {/* Attendee Info */}
             <section>
               <h2 className="text-lg font-serif font-bold text-brand-dark mb-4">Attendee</h2>

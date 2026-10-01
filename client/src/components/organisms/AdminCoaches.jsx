@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Edit3, Trash2, XCircle } from 'lucide-react';
 import { apiFetch } from '../../api/base';
+import { useNotify } from '../Notifications';
 
 const BRANCHES = ['Angeles', 'San Fernando'];
 const EMPTY_FORM = { name: '', specialty: '', bio: '', branches: [] };
@@ -8,6 +9,7 @@ const EMPTY_FORM = { name: '', specialty: '', bio: '', branches: [] };
 // The admin's Coaches page. It lists the coaches who teach at the branch picked
 // in the sidebar; a coach switched on for both branches appears under both.
 export default function AdminCoaches({ coaches, branch, theme, onChanged }) {
+  const { confirm, toast } = useNotify();
   const [editing, setEditing] = useState(null); // null = closed, 'new', or a coach
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -47,6 +49,7 @@ export default function AdminCoaches({ coaches, branch, theme, onChanged }) {
         body: JSON.stringify(form),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Request failed');
+      toast(editing === 'new' ? `${form.name} added.` : `${form.name} saved.`);
       setEditing(null);
       onChanged();
     } catch (err) {
@@ -57,12 +60,18 @@ export default function AdminCoaches({ coaches, branch, theme, onChanged }) {
   };
 
   const handleDelete = async (coach) => {
-    if (!window.confirm(`Delete ${coach.name}? This removes them from both branches.`)) return;
+    if (!(await confirm({
+      title: `Delete ${coach.name}?`,
+      message: 'This removes them from both branches. Coaches with classes on the schedule cannot be deleted.',
+      confirmLabel: 'Delete coach',
+      tone: 'danger',
+    }))) return;
     setListError('');
     try {
       const res = await apiFetch(`/api/coaches/${coach.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Request failed');
       onChanged();
+      toast(`${coach.name} deleted.`);
     } catch (err) {
       setListError(err.message);
     }

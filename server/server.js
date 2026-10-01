@@ -10,7 +10,7 @@ import * as packagesRepo from './packagesRepo.js';
 import * as settingsRepo from './settingsRepo.js';
 import { allow, clientIp } from './rateLimit.js';
 import { PACKAGES, findPackage, creditTypesForClass } from './packagesCatalog.js';
-import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, sendBookingCancelled, sendBookingMoved, sendClassRescheduled, MAIL_MODE } from './mailer.js';
+import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, sendBookingCancelled, sendBookingMoved, sendClassRescheduled, sendPaymentRejected, sendPackageRejected, MAIL_MODE } from './mailer.js';
 
 const app = express();
 
@@ -472,6 +472,7 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res, next) => {
     // The studio cancelling an active booking also tells the client.
     const send = before.status !== 'confirmed' && status === 'confirmed' ? sendConfirmation
       : ['pending', 'confirmed'].includes(before.status) && status === 'cancelled' ? sendBookingCancelled
+      : ['pending', 'confirmed'].includes(before.status) && status === 'rejected' ? sendPaymentRejected
       : null;
     if (send) {
       try {
@@ -733,14 +734,12 @@ app.patch('/api/package-purchases/:id', requireAdmin, async (req, res, next) => 
     const purchase = await packagesRepo.setStatus(pool, Number(req.params.id), status);
     if (!purchase) return res.status(409).json({ error: 'This purchase has already been handled.' });
 
-    if (status === 'active') {
-      try {
-        await sendPackageActivated(purchase);
-        purchase.emailed = true;
-      } catch (error) {
-        console.error(`Package email for purchase ${purchase.id} failed:`, error.message);
-        purchase.emailed = false;
-      }
+    try {
+      await (status === 'active' ? sendPackageActivated : sendPackageRejected)(purchase);
+      purchase.emailed = true;
+    } catch (error) {
+      console.error(`Package email for purchase ${purchase.id} (${status}) failed:`, error.message);
+      purchase.emailed = false;
     }
     res.json(purchase);
   } catch (error) {

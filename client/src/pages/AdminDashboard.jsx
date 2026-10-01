@@ -8,6 +8,7 @@ import AdminStudioSettings from '../components/organisms/AdminStudioSettings';
 import AdminClientProfile from '../components/organisms/AdminClientProfile';
 import AdminClassRoster from '../components/organisms/AdminClassRoster';
 import { apiFetch } from '../api/base';
+import { useNotify } from '../components/Notifications';
 import { CLASS_TYPES, DEFAULT_CAPACITY } from '../api/classTypes';
 import { DAY_START, DAY_END, hourLabels, labelToMinutes, minutesToLabel, parseTimeInput, durationOf } from '../api/time';
 
@@ -45,6 +46,7 @@ const END_TIME_OPTIONS = hourLabels(DAY_START + 60, DAY_END);
 const MAX_CAPACITY = 50;
 
 export default function AdminDashboard() {
+  const { confirm, toast } = useNotify();
   const [activeTab, setActiveTab] = useState('pending');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [profileEmail, setProfileEmail] = useState(null);
@@ -151,8 +153,12 @@ export default function AdminDashboard() {
 
   const [bookingError, setBookingError] = useState('');
 
+  // The status being saved, so the buttons can say so while the client is emailed.
+  const [verifying, setVerifying] = useState(null);
+
   const setBookingStatus = async (id, status) => {
     setBookingError('');
+    setVerifying(status);
     try {
       const res = await apiFetch(`/api/bookings/${id}`, {
         method: 'PATCH',
@@ -164,13 +170,15 @@ export default function AdminDashboard() {
         booking.id === id ? { ...booking, status } : booking
       ));
       setSelectedBooking(null);
-      // The booking is confirmed either way; this only says the email did not go out.
-      if (data?.emailed === false) {
-        window.alert('The booking is confirmed, but the confirmation email could not be sent. Please let the client know yourself.');
-      }
+      const name = data?.clientName ?? 'the client';
+      const done = status === 'confirmed' ? `Booking confirmed for ${name}.` : `Booking rejected for ${name}. Their spot is free again.`;
+      if (data?.emailed === false) toast(`${done} The email to ${name} could not be sent, so please let them know yourself.`, { type: 'error' });
+      else toast(`${done}${data?.emailed ? ` ${name} has been emailed.` : ''}`);
     } catch (error) {
       console.error("Failed to update booking:", error);
       setBookingError(`Could not update the booking: ${error.message}`);
+    } finally {
+      setVerifying(null);
     }
   };
 
@@ -189,7 +197,12 @@ export default function AdminDashboard() {
 
   // Activating starts the package's validity and emails the client.
   const setPurchaseStatus = async (purchase, status) => {
-    if (status === 'rejected' && !window.confirm(`Reject ${purchase.clientName || purchase.clientEmail}'s payment for ${purchase.name}?`)) return;
+    if (status === 'rejected' && !(await confirm({
+      title: 'Reject this purchase?',
+      message: `${purchase.clientName || purchase.clientEmail}'s payment for ${purchase.name} will be rejected, and they will be emailed.`,
+      confirmLabel: 'Reject purchase',
+      tone: 'danger',
+    }))) return;
     setPurchaseError('');
     setBusyPurchaseId(purchase.id);
     try {
@@ -197,9 +210,10 @@ export default function AdminDashboard() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Request failed');
       setPackagePurchases(prev => prev.map(p => (p.id === purchase.id ? data : p)));
-      if (data.emailed === false) {
-        window.alert('The package is active, but the email to the client could not be sent. Please let them know yourself.');
-      }
+      const who = purchase.clientName || purchase.clientEmail;
+      const done = status === 'active' ? `${purchase.name} is now active for ${who}.` : `${who}'s purchase was rejected.`;
+      if (data.emailed === false) toast(`${done} The email could not be sent, so please let them know yourself.`, { type: 'error' });
+      else toast(`${done}${data.emailed ? ` ${who} has been emailed.` : ''}`);
     } catch (error) {
       setPurchaseError(`Could not update the purchase: ${error.message}`);
     } finally {
@@ -208,7 +222,16 @@ export default function AdminDashboard() {
   };
 
   const handleConfirm = (id) => setBookingStatus(id, 'confirmed');
-  const handleReject = (id) => setBookingStatus(id, 'rejected');
+  const handleReject = async (id) => {
+    const booking = pendingBookings.find(b => b.id === id);
+    const ok = await confirm({
+      title: 'Reject this payment?',
+      message: `${booking?.clientName ?? 'The client'}'s booking will be rejected and their spot freed. They will be emailed that the payment could not be verified.`,
+      confirmLabel: 'Reject payment',
+      tone: 'danger',
+    });
+    if (ok) setBookingStatus(id, 'rejected');
+  };
 
   const changeCapacity = (delta) => {
     setCapacity(prev => Math.min(MAX_CAPACITY, Math.max(1, (Number(prev) || 0) + delta)));
@@ -217,7 +240,13 @@ export default function AdminDashboard() {
   // Cancelling keeps the class on the schedule, marked as cancelled, so clients
   // who were planning to come can see what happened. It can be restored.
   const handleSetCancelled = async (isCancelled) => {
-    if (isCancelled && !window.confirm(`Cancel ${editingClass.title} at ${editingClass.time}? Clients will see it as cancelled and will not be able to book it, and everyone already booked will be emailed.`)) {
+    if (isCancelled && !(await confirm({
+      title: `Cancel ${editingClass.title}?`,
+      message: `${editingClass.time} on ${editingClass.date}. It will be hidden from clients and can't be booked. Everyone already booked will be emailed. You can restore it later.`,
+      confirmLabel: 'Cancel class',
+      cancelLabel: 'Keep class',
+      tone: 'danger',
+    }))) {
       return;
     }
     setClassFormError('');
@@ -226,9 +255,13 @@ export default function AdminDashboard() {
         method: 'PATCH',
         body: JSON.stringify({ isCancelled })
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Request failed');
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Request failed');
       setIsClassModalOpen(false);
       setRefreshKey(prev => prev + 1);
+      if (!isCancelled) toast(`${editingClass.title} is back on the schedule.`);
+      else if (data?.notifyFailed) toast(`${editingClass.title} cancelled, but ${data.notifyFailed} email${data.notifyFailed === 1 ? '' : 's'} could not be sent. Please tell those clients yourself.`, { type: 'error' });
+      else toast(`${editingClass.title} cancelled.${data?.notified ? ` ${data.notified} booked ${data.notified === 1 ? 'client was' : 'clients were'} emailed.` : ''}`);
     } catch (error) {
       console.error("Failed to update class:", error);
       setClassFormError(`Could not ${isCancelled ? 'cancel' : 'restore'} the class: ${error.message}`);
@@ -784,15 +817,17 @@ export default function AdminDashboard() {
               <div className="mt-8 flex gap-3 pt-6 border-t border-[#E8E2D9]">
                 <button 
                   onClick={() => handleReject(selectedBooking.id)}
-                  className="flex-1 py-3.5 rounded-[10px] border border-[#ffb3b3] text-[#E02424] font-bold text-[13px] hover:bg-[#fff5f5] transition-colors"
+                  disabled={Boolean(verifying)}
+                  className="flex-1 py-3.5 rounded-[10px] border border-[#ffb3b3] text-[#E02424] font-bold text-[13px] hover:bg-[#fff5f5] transition-colors disabled:opacity-50"
                 >
-                  Reject
+                  {verifying === 'rejected' ? 'Rejecting…' : 'Reject'}
                 </button>
                 <button 
                   onClick={() => handleConfirm(selectedBooking.id)}
-                  className={`flex-1 py-3.5 rounded-[10px] ${theme.bg} ${theme.text} ${theme.bgHover} font-bold text-[13px] transition-colors shadow-sm`}
+                  disabled={Boolean(verifying)}
+                  className={`flex-1 py-3.5 rounded-[10px] ${theme.bg} ${theme.text} ${theme.bgHover} font-bold text-[13px] transition-colors shadow-sm disabled:opacity-50`}
                 >
-                  Confirm Booking
+                  {verifying === 'confirmed' ? 'Confirming…' : 'Confirm Booking'}
                 </button>
               </div>
             </div>
@@ -827,7 +862,11 @@ export default function AdminDashboard() {
                 const changedSchedule = formData.get('date') !== editingClass.date
                   || timeStr !== editingClass.time
                   || durationMins !== durationOf(editingClass);
-                if (changedSchedule && !window.confirm(`Change the schedule of ${editingClass.title}?\n\nClients already booked in this class will be emailed the new time.`)) {
+                if (changedSchedule && !(await confirm({
+                  title: `Change the schedule of ${editingClass.title}?`,
+                  message: 'Clients already booked in this class will be emailed the new time.',
+                  confirmLabel: 'Save and email clients',
+                }))) {
                   return;
                 }
               }
@@ -867,8 +906,10 @@ export default function AdminDashboard() {
                 });
                 const saved = await res.json().catch(() => null);
                 if (!res.ok) throw new Error(saved?.error || 'Request failed');
-                if (saved?.notified) window.alert(`Saved. ${saved.notified} booked ${saved.notified === 1 ? 'client was' : 'clients were'} emailed the new time.`);
-                if (saved?.notifyFailed) window.alert(`${saved.notifyFailed} email${saved.notifyFailed === 1 ? '' : 's'} could not be sent. Please tell those clients yourself.`);
+                if (saved?.notifyFailed) toast(`Saved, but ${saved.notifyFailed} email${saved.notifyFailed === 1 ? '' : 's'} could not be sent. Please tell those clients yourself.`, { type: 'error' });
+                else toast(saved?.notified
+                  ? `Saved. ${saved.notified} booked ${saved.notified === 1 ? 'client was' : 'clients were'} emailed the new time.`
+                  : editingClass ? 'Class updated.' : 'Class added.');
                 setIsClassModalOpen(false);
                 setRefreshKey(prev => prev + 1);
               } catch (error) {
