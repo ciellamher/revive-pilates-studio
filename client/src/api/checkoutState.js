@@ -1,3 +1,5 @@
+import { isPrivateType } from './classTypes'
+
 // What the schedule hands to /checkout about the class being booked.
 export function checkoutClassState(cls) {
   const takenSpots = cls.takenSpots ?? []
@@ -24,3 +26,10 @@ export function checkoutPrivateState(cls) {
 // A Reformer class nobody has booked yet can be taken as a private session.
 export const canBookPrivately = (cls) =>
   !cls.isCancelled && !cls.isDone && (cls.takenSpots?.length ?? 0) === 0 && cls.title.toLowerCase().includes('reformer')
+
+// What the schedule's 'Private Sessions' filter shows: classes that are
+// private by type, and group Reformer classes that can be taken privately.
+export const showsAsPrivate = (cls) => (isPrivateType(cls.title) && !cls.isCancelled && !cls.isDone) || canBookPrivately(cls)
+
+// The link for a class under that filter.
+export const privateFilterState = (cls) => (isPrivateType(cls.title) ? checkoutClassState(cls) : checkoutPrivateState(cls))

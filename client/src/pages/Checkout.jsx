@@ -7,6 +7,7 @@ import { Calendar, Clock, MapPin, User, Ticket } from 'lucide-react';
 import PaymentUploadPanel from '../components/organisms/PaymentUploadPanel';
 import { API_BASE, apiFetch } from '../api/base';
 import { creditTypesForClass, creditLabel } from '../api/packages';
+import { priceFor } from '../api/classTypes';
 import { useAuth } from '../contexts/AuthContext';
 import classPreviewImg from '../assets/revive-photos/reformer_11.jpg';
 
@@ -116,16 +117,8 @@ export default function Checkout() {
   // Infer classType from title for dynamic pricing and shapes
   const classType = title.toLowerCase().includes('mat') ? 'mat' : title.toLowerCase().includes('barre') ? 'barre' : 'reformer';
 
-  let price = '1,100'; // Default to Reformer Group
-  const t = title.toLowerCase();
-  
-  if (t.includes('mat') || t.includes('barre')) {
-    price = '500';
-  } else if (t.includes('private')) {
-    price = '2,500';
-  } else if (t.includes('clinical')) {
-    price = '2,800';
-  }
+  // Price per person for this kind of class, e.g. '1,100'.
+  const price = priceFor(title).toLocaleString('en-US');
 
   // The summary card's button opens the payment step and brings it into view.
   const startDirectPayment = () => {

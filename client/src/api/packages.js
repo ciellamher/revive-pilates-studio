@@ -20,6 +20,8 @@ export const creditLabel = (type) => CREDIT_LABELS[type] ?? type
 // Which credits a class can use, mirroring the server's rule.
 export function creditTypesForClass(title = '') {
   const t = title.toLowerCase()
+  if (t.includes('clinical')) return ['clinical']
+  if (t.includes('private')) return ['private']
   if (t.includes('reformer')) return ['reformer', 'group']
   if (t.includes('mat') || t.includes('barre')) return ['mat', 'group']
   return []

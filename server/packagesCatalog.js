@@ -7,8 +7,8 @@
 //   reformer  Reformer group classes
 //   mat       Mat Pilates or Barre group classes
 //   group     any group class
-//   private   private sessions (booked with the studio, not online yet)
-//   clinical  clinical Pilates sessions (booked with the studio)
+//   private   private, duo and trio sessions
+//   clinical  clinical Pilates sessions
 
 const MONTH = 30
 
@@ -57,6 +57,8 @@ export const findPackage = (id) => PACKAGES.find((p) => p.id === id) ?? null
 // general 'group' credit, so mixed packages keep their flexibility longest.
 export function creditTypesForClass(title) {
   const t = title.toLowerCase()
+  if (t.includes('clinical')) return ['clinical']
+  if (t.includes('private')) return ['private']
   if (t.includes('reformer')) return ['reformer', 'group']
   if (t.includes('mat') || t.includes('barre')) return ['mat', 'group']
   return []

@@ -173,7 +173,7 @@ app.delete('/api/coaches/:id', requireAdmin, async (req, res, next) => {
 
 // Classes live in PostgreSQL, so every browser and every computer sees the
 // same schedule and it survives a server restart.
-const HALF_HOUR_TIME = /^(0[1-9]|1[0-2]):(00|30) (AM|PM)$/;
+const CLOCK_TIME = /^(0[1-9]|1[0-2]):[0-5]\d (AM|PM)$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Checks the fields that are present and returns { input } or { error }.
@@ -202,15 +202,15 @@ function parseClassInput(body, { requireAll }) {
     input.date = body.date;
   }
   if (has('time')) {
-    if (typeof body.time !== 'string' || !HALF_HOUR_TIME.test(body.time)) {
-      return { error: 'time must be on the hour or half hour, like 08:30 AM' };
+    if (typeof body.time !== 'string' || !CLOCK_TIME.test(body.time)) {
+      return { error: 'time must look like 08:30 AM' };
     }
     input.time = body.time;
   }
   if (has('duration')) {
     const minutes = parseInt(body.duration, 10);
-    if (!Number.isInteger(minutes) || minutes < 30 || minutes > 480) {
-      return { error: 'duration must be between 30 and 480 minutes' };
+    if (!Number.isInteger(minutes) || minutes < 15 || minutes > 480) {
+      return { error: 'A class must be between 15 minutes and 8 hours long' };
     }
     input.durationMin = minutes;
   }

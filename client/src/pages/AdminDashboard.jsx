@@ -7,24 +7,40 @@ import AdminCoaches from '../components/organisms/AdminCoaches';
 import AdminStudioSettings from '../components/organisms/AdminStudioSettings';
 import AdminClientProfile from '../components/organisms/AdminClientProfile';
 import { apiFetch } from '../api/base';
+import { CLASS_TYPES, DEFAULT_CAPACITY } from '../api/classTypes';
+import { DAY_START, DAY_END, hourLabels, labelToMinutes, minutesToLabel, parseTimeInput, durationOf } from '../api/time';
 
-// Every half hour from 8:00 AM to 8:00 PM. The schedule grid only has
-// half-hour rows, so a class at any other minute would not show up on it.
-const HALF_HOUR_TIMES = (() => {
-  const times = [];
-  for (let mins = 8 * 60; mins <= 20 * 60; mins += 30) {
-    const h = Math.floor(mins / 60);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hh = h % 12 || 12;
-    times.push(`${hh.toString().padStart(2, '0')}:${(mins % 60).toString().padStart(2, '0')} ${ampm}`);
-  }
-  return times;
-})();
-const START_TIME_OPTIONS = HALF_HOUR_TIMES.slice(0, -2); // last start is 7:00 PM
-const END_TIME_OPTIONS = HALF_HOUR_TIMES.slice(1);
+// A time box: type any time, or pick a whole hour from the suggestions.
+function TimeField({ id, label, value, onChange, options }) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">{label}</label>
+      <input
+        id={id}
+        list={`${id}-options`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        // Clicking in selects the whole time, so typing replaces it.
+        onFocus={(e) => e.target.select()}
+        onBlur={(e) => {
+          const minutes = parseTimeInput(e.target.value);
+          if (minutes !== null) onChange(minutesToLabel(minutes));
+        }}
+        placeholder="e.g. 10:15 AM"
+        autoComplete="off"
+        className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium text-sm"
+      />
+      <datalist id={`${id}-options`}>
+        {options.map(option => <option key={option} value={option} />)}
+      </datalist>
+    </div>
+  );
+}
 
-// Slots a class starts with when the admin picks its type. Still editable.
-const DEFAULT_CAPACITY = { 'Reformer Flow': 4, 'Mat Pilates': 10, 'Barre': 10 };
+// The time boxes suggest whole hours, but any time can be typed (like 10:15).
+const START_TIME_OPTIONS = hourLabels(DAY_START, DAY_END - 60);
+const END_TIME_OPTIONS = hourLabels(DAY_START + 60, DAY_END);
+
 const MAX_CAPACITY = 50;
 
 export default function AdminDashboard() {
@@ -489,19 +505,7 @@ export default function AdminDashboard() {
               setCoachId(cls.coachId);
               setClassFormError('');
               setModalStartTime(cls.time);
-              
-              let [timePart, modifier] = cls.time.split(' ');
-              let [hours, minutes] = timePart.split(':');
-              if (hours === '12') hours = '00';
-              if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
-              const startMins = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
-              const durMins = parseInt(cls.duration?.replace(' min', '') || '50', 10);
-              const endMins = startMins + durMins;
-              let eH = Math.floor(endMins / 60);
-              const eM = endMins % 60;
-              const eAmPm = eH >= 12 && eH < 24 ? 'PM' : 'AM';
-              eH = eH % 12 || 12;
-              setModalEndTime(`${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')} ${eAmPm}`);
+              setModalEndTime(minutesToLabel((labelToMinutes(cls.time) ?? DAY_START) + durationOf(cls)));
 
               setIsClassModalOpen(true);
             }}
@@ -516,17 +520,7 @@ export default function AdminDashboard() {
               const date = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
               
               setModalStartTime(time);
-              let [timePart, modifier] = time.split(' ');
-              let [hours, minutes] = timePart.split(':');
-              if (hours === '12') hours = '00';
-              if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
-              const startMins = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
-              const endMins = startMins + 60;
-              let eH = Math.floor(endMins / 60);
-              const eM = endMins % 60;
-              const eAmPm = eH >= 12 && eH < 24 ? 'PM' : 'AM';
-              eH = eH % 12 || 12;
-              setModalEndTime(`${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')} ${eAmPm}`);
+              setModalEndTime(minutesToLabel((labelToMinutes(time) ?? DAY_START) + 60));
 
               setPrefilledClassData({ date });
               setIsClassModalOpen(true);
@@ -809,20 +803,18 @@ export default function AdminDashboard() {
             <form onSubmit={async (e) => {
               e.preventDefault();
               const formData = new FormData(e.target);
-              const parseAmPmToMins = (timeString) => {
-                let [timePart, modifier] = timeString.split(' ');
-                let [hours, minutes] = timePart.split(':');
-                if (hours === '12') hours = '00';
-                if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
-                return parseInt(hours, 10) * 60 + parseInt(minutes, 10);
-              };
-
-              let sMins = parseAmPmToMins(modalStartTime);
-              let eMins = parseAmPmToMins(modalEndTime);
-              let durationMins = eMins - sMins;
-              if (durationMins <= 0) durationMins += 24 * 60; // handle wrap around midnight
-
-              let timeStr = modalStartTime;
+              const sMins = parseTimeInput(modalStartTime);
+              const eMins = parseTimeInput(modalEndTime);
+              if (sMins === null || eMins === null) {
+                setClassFormError('Please enter the start and end times, like 9:00 AM or 10:15.');
+                return;
+              }
+              const durationMins = eMins - sMins;
+              if (durationMins < 15) {
+                setClassFormError('The end time must be at least 15 minutes after the start time.');
+                return;
+              }
+              const timeStr = minutesToLabel(sMins);
 
               if (!coachId) {
                 setClassFormError(`Add a coach for the ${branchName} branch first, under Coaches.`);
@@ -839,7 +831,7 @@ export default function AdminDashboard() {
                 dateId: localDate.toDateString(),
                 coachId,
                 branch: selectedBranch === 'Angeles Branch' ? 'Angeles' : 'San Fernando',
-                duration: `${durationMins} min`,
+                duration: durationMins,
                 capacity: Number(capacity),
                 isFull: editingClass ? editingClass.isFull : false,
                 isEmpty: editingClass ? editingClass.isEmpty : true,
@@ -880,9 +872,9 @@ export default function AdminDashboard() {
                         value={classTypeTitle}
                         onChange={(title) => {
                           setClassTypeTitle(title);
-                          setCapacity(DEFAULT_CAPACITY[title]);
+                          setCapacity(DEFAULT_CAPACITY[title] ?? 1);
                         }}
-                        options={['Reformer Flow', 'Mat Pilates', 'Barre']}
+                        options={CLASS_TYPES}
                         triggerClassName="px-4 py-3"
                       />
                     </div>
@@ -891,45 +883,29 @@ export default function AdminDashboard() {
                     <div className="col-span-2 sm:col-span-1">
                       <label htmlFor="class-date" className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Date</label>
                       <input id="class-date" name="date" required type="date" defaultValue={
-                        editingClass?.dateId ? new Date(new Date(editingClass.dateId).getTime() - (new Date(editingClass.dateId).getTimezoneOffset() * 60000)).toISOString().split('T')[0] : prefilledClassData?.date || ''
+                        editingClass?.date || prefilledClassData?.date || ''
                       } className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium text-sm" />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Start Time</label>
-                      <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-40 relative">
-                        <CustomDropdown
-                          value={modalStartTime}
-                          onChange={(val) => {
-                             setModalStartTime(val);
-                             // Auto update end time to +1 hour
-                             let [timePart, modifier] = val.split(' ');
-                             let [hours, minutes] = timePart.split(':');
-                             if (hours === '12') hours = '00';
-                             if (modifier === 'PM' && hours !== '00') hours = (parseInt(hours, 10) + 12).toString();
-                             const startMins = parseInt(hours, 10) * 60 + parseInt(minutes, 10);
-                             const endMins = startMins + 60;
-                             let eH = Math.floor(endMins / 60);
-                             const eM = endMins % 60;
-                             const eAmPm = eH >= 12 && eH < 24 ? 'PM' : 'AM';
-                             eH = eH % 12 || 12;
-                             setModalEndTime(`${eH.toString().padStart(2, '0')}:${eM.toString().padStart(2, '0')} ${eAmPm}`);
-                          }}
-                          options={START_TIME_OPTIONS}
-                          triggerClassName="px-4 py-3"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">End Time</label>
-                      <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-30 relative">
-                        <CustomDropdown
-                          value={modalEndTime}
-                          onChange={setModalEndTime}
-                          options={END_TIME_OPTIONS}
-                          triggerClassName="px-4 py-3"
-                        />
-                      </div>
-                    </div>
+                    <TimeField
+                      id="class-start"
+                      label="Start Time"
+                      value={modalStartTime}
+                      options={START_TIME_OPTIONS}
+                      onChange={(value) => {
+                        setModalStartTime(value);
+                        // Keep the end an hour later when the start moves past it.
+                        const start = parseTimeInput(value);
+                        const end = parseTimeInput(modalEndTime);
+                        if (start !== null && (end === null || end <= start)) setModalEndTime(minutesToLabel(start + 60));
+                      }}
+                    />
+                    <TimeField
+                      id="class-end"
+                      label="End Time"
+                      value={modalEndTime}
+                      options={END_TIME_OPTIONS}
+                      onChange={setModalEndTime}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Instructor</label>
