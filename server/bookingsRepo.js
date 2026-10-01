@@ -213,6 +213,78 @@ export async function getReceipt(pool, id) {
   return result.rows[0] ? result.rows[0].receipt : undefined
 }
 
+// Every booking in one class, for the admin's class roster.
+export async function getForClass(pool, classId) {
+  const result = await pool.query(
+    `SELECT ${BOOKING_WITH_CLASS}, b.user_package_id
+     FROM bookings b JOIN classes c ON c.id = b.class_id
+     WHERE b.class_id = $1
+     ORDER BY (b.status IN ('rejected', 'cancelled')), b.spot, b.id`,
+    [classId]
+  )
+  return result.rows.map((row) => ({ ...toBooking(row), paidWithPackage: row.user_package_id !== null }))
+}
+
+// Moves a booking to another class, keeping its payment, status and package
+// credit. It keeps the same spot number if that is free there, otherwise it
+// takes the first free one. Returns { spot } or { problem }.
+export async function move(pool, id, toClassId, creditTypesForClass) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const found = await client.query('SELECT * FROM bookings WHERE id = $1 FOR UPDATE', [id])
+    const booking = found.rows[0]
+    if (!booking) return rollback(client, 'not-found')
+    if (['rejected', 'cancelled'].includes(booking.status)) return rollback(client, 'inactive')
+    if (booking.class_id === toClassId) return rollback(client, 'same-class')
+
+    // The target class row is locked so two moves cannot take the same last spot.
+    const target = await client.query(
+      `SELECT c.capacity, c.title FROM classes c
+       WHERE ${BOOKABLE('1', '$2::boolean')}
+       FOR UPDATE`,
+      [toClassId, booking.is_private]
+    )
+    if (target.rowCount === 0) return rollback(client, 'unavailable')
+    const { capacity, title } = target.rows[0]
+
+    if (booking.user_package_id && !creditTypesForClass(title).includes(booking.credit_type)) {
+      return rollback(client, 'credit-mismatch')
+    }
+
+    const taken = new Set((await client.query(
+      "SELECT spot FROM bookings WHERE class_id = $1 AND status NOT IN ('rejected', 'cancelled')",
+      [toClassId]
+    )).rows.map((row) => row.spot))
+    let spot = 1
+    if (!booking.is_private) {
+      spot = booking.spot <= capacity && !taken.has(booking.spot)
+        ? booking.spot
+        : Array.from({ length: capacity }, (_, i) => i + 1).find((n) => !taken.has(n))
+      if (!spot) return rollback(client, 'full')
+    }
+
+    // A moved booking gets a fresh reminder for its new time.
+    await client.query(
+      'UPDATE bookings SET class_id = $2, spot = $3, reminder_sent_at = NULL WHERE id = $1',
+      [id, toClassId, spot]
+    )
+    await client.query('COMMIT')
+    return { spot }
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {})
+    if (error.code === '23505') return { problem: 'full' }
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function rollback(client, problem) {
+  await client.query('ROLLBACK')
+  return { problem }
+}
+
 // Everyone who should hear that a class was cancelled.
 export async function getRecipientsForClass(pool, classId) {
   const result = await pool.query(

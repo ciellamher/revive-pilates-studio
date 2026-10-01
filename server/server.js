@@ -10,7 +10,7 @@ import * as packagesRepo from './packagesRepo.js';
 import * as settingsRepo from './settingsRepo.js';
 import { allow, clientIp } from './rateLimit.js';
 import { PACKAGES, findPackage, creditTypesForClass } from './packagesCatalog.js';
-import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, MAIL_MODE } from './mailer.js';
+import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, sendBookingCancelled, sendBookingMoved, MAIL_MODE } from './mailer.js';
 
 const app = express();
 
@@ -443,8 +443,8 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res, next) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
     const status = req.body?.status;
-    if (!['pending', 'confirmed', 'rejected'].includes(status)) {
-      return res.status(400).json({ error: 'status must be pending, confirmed or rejected' });
+    if (!['pending', 'confirmed', 'rejected', 'cancelled'].includes(status)) {
+      return res.status(400).json({ error: 'status must be pending, confirmed, rejected or cancelled' });
     }
     const id = Number(req.params.id);
     const before = await bookingsRepo.getRecipient(pool, id);
@@ -456,12 +456,16 @@ app.patch('/api/bookings/:id', requireAdmin, async (req, res, next) => {
 
     // Tell the client, but only on the change to confirmed. The confirmation is
     // already saved: a mail failure is logged and reported in `emailed`.
-    if (before.status !== 'confirmed' && status === 'confirmed') {
+    // The studio cancelling an active booking also tells the client.
+    const send = before.status !== 'confirmed' && status === 'confirmed' ? sendConfirmation
+      : ['pending', 'confirmed'].includes(before.status) && status === 'cancelled' ? sendBookingCancelled
+      : null;
+    if (send) {
       try {
-        await sendConfirmation(before);
+        await send(before);
         booking.emailed = true;
       } catch (error) {
-        console.error(`Confirmation email for booking ${id} failed:`, error.message);
+        console.error(`Email for booking ${id} (${status}) failed:`, error.message);
         booking.emailed = false;
       }
     }
@@ -726,6 +730,53 @@ app.patch('/api/package-purchases/:id', requireAdmin, async (req, res, next) => 
       }
     }
     res.json(purchase);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// A class's roster: everyone booked in it, for the admin.
+app.get('/api/classes/:id/bookings', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Class not found' });
+    res.json({ bookings: await bookingsRepo.getForClass(pool, Number(req.params.id)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Moves a booking to another class (rescheduling) and tells the client.
+app.post('/api/bookings/:id/move', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const id = Number(req.params.id);
+    const toClassId = Number(req.body?.classId);
+    if (!Number.isInteger(toClassId) || toClassId < 1) return res.status(400).json({ error: 'Please choose a class to move to' });
+
+    const before = await bookingsRepo.getRecipient(pool, id);
+    const { problem } = await bookingsRepo.move(pool, id, toClassId, creditTypesForClass);
+    const messages = {
+      'not-found': [404, 'Booking not found'],
+      'inactive': [409, 'Only pending or confirmed bookings can be moved.'],
+      'same-class': [409, 'The booking is already in that class.'],
+      'unavailable': [409, 'That class cannot take this booking (cancelled, started, or held privately).'],
+      'credit-mismatch': [409, "This booking was paid with a package credit that can't be used for that type of class."],
+      'full': [409, 'That class is full.'],
+    };
+    if (problem) {
+      const [code, error] = messages[problem];
+      return res.status(code).json({ error });
+    }
+
+    const after = await bookingsRepo.getRecipient(pool, id);
+    let emailed = true;
+    try {
+      await sendBookingMoved(after, before);
+    } catch (error) {
+      console.error(`Moved email for booking ${id} failed:`, error.message);
+      emailed = false;
+    }
+    res.json({ booking: (await bookingsRepo.getAll(pool)).find((b) => b.id === String(id)), emailed });
   } catch (error) {
     next(error);
   }

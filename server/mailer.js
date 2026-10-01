@@ -148,6 +148,28 @@ export function sendPackageActivated(purchase) {
   })
 }
 
+export function sendBookingCancelled(recipient) {
+  return sendMail({
+    to: recipient.email,
+    subject: `Booking cancelled: ${recipient.title} on ${formatDate(recipient.date)} at ${recipient.time}`,
+    html: layout('Your booking has been cancelled', `
+      <p>Hi ${escapeHtml(recipient.name)}, the studio has cancelled your booking for this class.</p>
+      ${classDetails(recipient)}
+      <p>If you paid for it, please reply to this email or message the studio about a refund or a new booking.</p>`),
+  })
+}
+
+export function sendBookingMoved(recipient, from) {
+  return sendMail({
+    to: recipient.email,
+    subject: `Booking moved: ${recipient.title} on ${formatDate(recipient.date)} at ${recipient.time}`,
+    html: layout('Your booking has a new time', `
+      <p>Hi ${escapeHtml(recipient.name)}, the studio has moved your booking from ${escapeHtml(from.title)} on ${formatDate(from.date)} at ${escapeHtml(from.time)} to:</p>
+      ${classDetails(recipient)}
+      <p>If this time does not work for you, please reply to this email or message the studio.</p>`),
+  })
+}
+
 export function sendCancellation(recipient) {
   return sendMail({
     to: recipient.email,

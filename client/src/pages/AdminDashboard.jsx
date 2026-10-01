@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/organisms/Navbar';
 import ClassScheduleGrid from '../components/organisms/ClassScheduleGrid';
 import CustomDropdown from '../components/atoms/CustomDropdown';
@@ -6,6 +6,7 @@ import { Calendar, Users, UserCheck, ClipboardCheck, Settings, CheckCircle, XCir
 import AdminCoaches from '../components/organisms/AdminCoaches';
 import AdminStudioSettings from '../components/organisms/AdminStudioSettings';
 import AdminClientProfile from '../components/organisms/AdminClientProfile';
+import AdminClassRoster from '../components/organisms/AdminClassRoster';
 import { apiFetch } from '../api/base';
 import { CLASS_TYPES, DEFAULT_CAPACITY } from '../api/classTypes';
 import { DAY_START, DAY_END, hourLabels, labelToMinutes, minutesToLabel, parseTimeInput, durationOf } from '../api/time';
@@ -135,7 +136,7 @@ export default function AdminDashboard() {
   // Simulated State for pending bookings
   const [pendingBookings, setPendingBookings] = useState([]);
 
-  useEffect(() => {
+  const loadBookings = useCallback(() => {
     apiFetch('/api/bookings')
       .then(res => res.json())
       .then(data => {
@@ -143,6 +144,10 @@ export default function AdminDashboard() {
       })
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    loadBookings();
+  }, [loadBookings]);
 
   const [bookingError, setBookingError] = useState('');
 
@@ -336,7 +341,7 @@ export default function AdminDashboard() {
                         {booking.status === 'confirmed' ? (
                           <span className="text-green-600 font-bold flex items-center gap-1 text-sm"><CheckCircle size={14}/> Confirmed</span>
                         ) : booking.status === 'cancelled' ? (
-                          <span className="text-brand-dark/50 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Cancelled by client</span>
+                          <span className="text-brand-dark/50 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Cancelled</span>
                         ) : (
                           <span className="text-red-600 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Rejected</span>
                         )}
@@ -370,7 +375,7 @@ export default function AdminDashboard() {
                           {booking.status === 'confirmed' ? (
                             <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={14}/> Confirmed</span>
                           ) : booking.status === 'cancelled' ? (
-                            <span className="text-brand-dark/50 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Cancelled by client</span>
+                            <span className="text-brand-dark/50 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Cancelled</span>
                           ) : (
                             <span className="text-red-600 font-bold flex items-center gap-1"><XCircle size={14}/> Rejected</span>
                           )}
@@ -799,7 +804,7 @@ export default function AdminDashboard() {
       {/* Class Form Modal */}
       {isClassModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className={`bg-white rounded-2xl w-full ${editingClass ? 'max-w-2xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto shadow-2xl`}>
             <form onSubmit={async (e) => {
               e.preventDefault();
               const formData = new FormData(e.target);
@@ -973,6 +978,17 @@ export default function AdminDashboard() {
                     </div>
                   </div>
               </div>
+
+              {editingClass && (
+                <AdminClassRoster
+                  cls={editingClass}
+                  onChanged={() => {
+                    // Keep Pending Verifications and the calendar's spot counts current.
+                    loadBookings();
+                    setRefreshKey(prev => prev + 1);
+                  }}
+                />
+              )}
 
               {editingClass?.isCancelled && (
                 <p className="mt-6 text-sm font-bold text-[#E02424]">This class is cancelled. Clients see it as cancelled and cannot book it.</p>

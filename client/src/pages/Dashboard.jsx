@@ -35,7 +35,7 @@ function bookingStatus(booking) {
     case 'confirmed': return { label: 'Confirmed', className: 'bg-green-50 text-green-700' };
     case 'pending': return { label: 'Checking payment', className: 'bg-amber-50 text-amber-700' };
     case 'rejected': return { label: 'Payment not accepted', className: 'bg-red-50 text-red-700' };
-    case 'cancelled': return { label: 'Cancelled by you', className: 'bg-black/5 text-brand-dark/60' };
+    case 'cancelled': return { label: 'Cancelled', className: 'bg-black/5 text-brand-dark/60' };
     default: return { label: booking.status, className: 'bg-black/5 text-brand-dark/60' };
   }
 }

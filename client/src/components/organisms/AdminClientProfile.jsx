@@ -7,7 +7,7 @@ const BOOKING_STATUS = {
   pending: 'Checking payment',
   confirmed: 'Confirmed',
   rejected: 'Rejected',
-  cancelled: 'Cancelled by client',
+  cancelled: 'Cancelled',
 };
 
 const formatDate = (iso) => {
