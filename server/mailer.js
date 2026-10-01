@@ -10,6 +10,10 @@ import nodemailer from 'nodemailer'
 
 const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env
 const USING_GMAIL = Boolean(GMAIL_USER && GMAIL_APP_PASSWORD)
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL)
+
+// 'gmail' or 'test inbox', for GET /api/health.
+export const MAIL_MODE = USING_GMAIL ? 'gmail' : 'test inbox'
 
 let transporterPromise
 
@@ -37,6 +41,12 @@ function getTransporter() {
 
 // Returns the Ethereal preview link in test mode, otherwise undefined.
 export async function sendMail({ to, subject, html }) {
+  // On a live site the test inbox would swallow every email while reporting
+  // success. Fail loudly instead, so the problem shows up in the logs and the
+  // admin's screen.
+  if (IS_PRODUCTION && !USING_GMAIL) {
+    throw new Error('Email is not set up: add GMAIL_USER and GMAIL_APP_PASSWORD on the host')
+  }
   const transporter = await getTransporter()
   const info = await transporter.sendMail({
     from: `"Revive Pilates Studio" <${USING_GMAIL ? GMAIL_USER : 'noreply@revivestudio.com'}>`,
@@ -86,6 +96,28 @@ export function sendReminder(recipient) {
       <p>Hi ${escapeHtml(recipient.name)}, this is a reminder of your upcoming class.</p>
       ${classDetails(recipient)}
       <p>Please arrive a few minutes early. If you are more than 15 minutes late your session may be forfeited.</p>`),
+  })
+}
+
+// Sent as soon as a client submits a booking paid directly, so they know it
+// arrived while the studio checks the payment.
+export function sendBookingReceived(recipient) {
+  return sendMail({
+    to: recipient.email,
+    subject: `Booking received: ${recipient.title} on ${formatDate(recipient.date)} at ${recipient.time}`,
+    html: layout('We received your booking', `
+      <p>Hi ${escapeHtml(recipient.name)}, thanks for booking with us. We are checking your payment and will email you again once your spot is confirmed.</p>
+      ${classDetails(recipient)}`),
+  })
+}
+
+export function sendPackageReceived(purchase) {
+  return sendMail({
+    to: purchase.clientEmail,
+    subject: `Purchase received: ${purchase.name}`,
+    html: layout('We received your purchase', `
+      <p>Hi ${escapeHtml(purchase.clientName || 'there')}, thanks for buying <strong>${escapeHtml(purchase.name)}</strong> (${escapeHtml(purchase.price)}).</p>
+      <p>We are checking your payment (reference ${escapeHtml(purchase.referenceId)}) and will email you once the package is active.</p>`),
   })
 }
 

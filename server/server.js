@@ -9,7 +9,7 @@ import * as usersRepo from './usersRepo.js';
 import * as packagesRepo from './packagesRepo.js';
 import * as settingsRepo from './settingsRepo.js';
 import { PACKAGES, findPackage, creditTypesForClass } from './packagesCatalog.js';
-import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated } from './mailer.js';
+import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, MAIL_MODE } from './mailer.js';
 
 const app = express();
 
@@ -396,6 +396,13 @@ app.post('/api/bookings', async (req, res, next) => {
     }
     // So the client shows up in the admin's Client Directory.
     await usersRepo.upsert(pool, { email: clientEmail, name: clientName });
+    // Awaited: a serverless host may stop once the response is sent. A failed
+    // email does not undo the booking.
+    try {
+      await sendBookingReceived(await bookingsRepo.getRecipient(pool, Number(booking.id)));
+    } catch (error) {
+      console.error(`Booking-received email for booking ${booking.id} failed:`, error.message);
+    }
     res.status(201).json(booking);
   } catch (error) {
     next(error);
@@ -642,7 +649,13 @@ app.post('/api/me/packages', requireUser, async (req, res, next) => {
     const receipt = parseImage(req.body?.receipt, 'The receipt');
     if (receipt.error) return res.status(400).json({ error: receipt.error });
     await usersRepo.upsert(pool, { email: req.userEmail });
-    res.status(201).json(await packagesRepo.create(pool, req.userEmail, pkg, referenceId, receipt.image));
+    const purchase = await packagesRepo.create(pool, req.userEmail, pkg, referenceId, receipt.image);
+    try {
+      await sendPackageReceived(purchase);
+    } catch (error) {
+      console.error(`Purchase-received email for purchase ${purchase.id} failed:`, error.message);
+    }
+    res.status(201).json(purchase);
   } catch (error) {
     next(error);
   }
@@ -767,6 +780,11 @@ app.get('/api/users/:email', requireAdmin, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+// A quick health check, including which mail service is in use. No secrets.
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, email: MAIL_MODE });
 });
 
 app.use((request, response) => {
