@@ -10,10 +10,31 @@ import { creditTypesForClass, creditLabel } from '../api/packages';
 import { useAuth } from '../contexts/AuthContext';
 import classPreviewImg from '../assets/revive-photos/reformer_11.jpg';
 
+const CHECKOUT_KEY = 'revive:checkout';
+
+function readStoredCheckout() {
+  try {
+    return JSON.parse(sessionStorage.getItem(CHECKOUT_KEY));
+  } catch {
+    return null;
+  }
+}
+
 export default function Checkout() {
   const [selectedPricing, setSelectedPricing] = useState(null);
   
   const location = useLocation();
+  // The class comes from the schedule link. It is also kept for this browser
+  // tab, so a refresh or a trip through sign-in does not lose it.
+  const checkoutState = location.state?.classId ? location.state : readStoredCheckout();
+  useEffect(() => {
+    if (!location.state?.classId) return;
+    try {
+      sessionStorage.setItem(CHECKOUT_KEY, JSON.stringify(location.state));
+    } catch {
+      // No storage: a refresh will ask for the class again.
+    }
+  }, [location.state]);
   const { 
     isWaitlist = false, 
     slotsLeft = 2, 
@@ -27,7 +48,7 @@ export default function Checkout() {
     capacity,
     takenSpots = [],
     isPrivate = false
-  } = location.state || {};
+  } = checkoutState || {};
 
   // Signed-in clients start with their own details; they can still change them.
   const { user } = useAuth();
@@ -147,6 +168,20 @@ export default function Checkout() {
       setSubmitting(false);
     }
   };
+
+  if (!classId) {
+    return (
+      <div className="min-h-screen bg-[#FAF7F2] flex flex-col">
+        <Navbar />
+        <main className="flex-1 pt-32 pb-24 max-w-xl w-full mx-auto px-4 sm:px-6 text-center">
+          <Calendar size={48} className="text-brand-dark/20 mx-auto mb-6" />
+          <h1 className="text-3xl font-bold text-brand-dark mb-3">Pick a class first</h1>
+          <p className="text-brand-dark/70 mb-8">Choose a time on the schedule, then press Book Now or Book Private to book your spot.</p>
+          <Link to="/book" className="inline-block bg-brand-brown text-white px-8 py-3 rounded-xl font-bold hover:bg-brand-dark transition-colors">See the schedule</Link>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF7F2]">
@@ -450,7 +485,7 @@ export default function Checkout() {
                     {classId && !isPrivate && classType === 'reformer' && takenSpots.length === 0 && (
                       <Link 
                         to="/checkout"
-                        state={{ ...location.state, title: 'Private Class', isPrivate: true, isWaitlist: false, slotsLeft: 1 }}
+                        state={{ ...checkoutState, title: 'Private Class', isPrivate: true, isWaitlist: false, slotsLeft: 1 }}
                         className="inline-block text-xs font-bold text-brand-brown hover:text-brand-dark underline underline-offset-2 mt-3 transition-colors"
                       >
                         Want to book this as a Private Class?

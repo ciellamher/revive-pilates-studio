@@ -90,7 +90,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
         ...cls,
         location: cls.branch,
         spots: `${Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0))} / ${cls.capacity} left`,
-        status: cls.isCancelled ? 'Cancelled' : cls.isFull ? 'Full' : category === 'Private Sessions' ? 'Book Private' : 'Book Now'
+        status: cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : category === 'Private Sessions' ? 'Book Private' : 'Book Now'
       }));
       data.push({
         dayId: d.id,
@@ -176,7 +176,8 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
           </div>
 
           {/* Filter Bar (Segmented) */}
-          <div className="w-full border border-brand-dark/30 rounded-[24px] flex flex-col md:flex-row overflow-hidden mb-12 bg-[#F5F2ED]">
+          {/* No overflow-hidden here: it would clip the dropdown menus. */}
+          <div className="relative z-30 w-full border border-brand-dark/30 rounded-[24px] flex flex-col md:flex-row mb-12 bg-[#F5F2ED]">
             <div className="flex-1 relative border-b md:border-b-0 md:border-r border-brand-dark/30">
               <CustomDropdown
                 value={category}
@@ -228,7 +229,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                 
                 <div className="flex flex-col gap-4">
                   {dayGroup.classes.map((cls) => (
-                    <div key={cls.id} className="flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-8">
+                    <div key={cls.id} className={`flex flex-col md:flex-row items-stretch md:items-center gap-4 md:gap-8 transition-opacity ${cls.isDone ? 'opacity-50' : ''}`}>
                       
                       {/* Outside Left: Time & Duration */}
                       <div className="w-[80px] shrink-0 text-brand-dark">
@@ -257,7 +258,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                         
                         {/* Action Button */}
                         <div className="flex flex-col gap-2 justify-center md:w-1/5 shrink-0">
-                          {cls.isCancelled || cls.isFull ? (
+                          {cls.isCancelled || cls.isDone || cls.isFull ? (
                             <span className="border border-brand-beige/30 text-brand-beige/60 px-8 py-3 rounded-full text-sm font-bold w-full text-center block">
                               {cls.status}
                             </span>

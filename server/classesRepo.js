@@ -11,6 +11,7 @@
 const COLUMNS = `
   id, title, to_char(class_date, 'YYYY-MM-DD') AS date, start_time,
   duration_min, coach_id, branch, capacity, is_cancelled,
+  ((class_date + to_timestamp(start_time, 'HH12:MI AM')::time) AT TIME ZONE 'Asia/Manila') <= now() AS has_started,
   (SELECT name FROM coaches WHERE id = classes.coach_id) AS instructor,
   CASE WHEN EXISTS (
     SELECT 1 FROM bookings
@@ -41,7 +42,9 @@ function toClass(row) {
     takenSpots: row.taken_spots,
     isFull: row.taken_spots.length >= row.capacity,
     isEmpty: row.taken_spots.length === 0,
-    isDone: false,
+    // Started classes are history: the schedule greys them out and the API
+    // refuses new bookings for them.
+    isDone: row.has_started,
   }
 }
 

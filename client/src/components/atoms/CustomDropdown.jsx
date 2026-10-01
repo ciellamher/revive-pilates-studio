@@ -28,7 +28,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, triggerClassNam
       </div>
       
       {isOpen && (
-        <div className="absolute top-[100%] left-0 w-[120%] min-w-[200px] mt-2 bg-[#F5F2ED] border border-[#D8CFC4] rounded-2xl shadow-xl z-50 overflow-hidden py-2">
+        <div className="absolute top-[100%] left-0 w-full sm:w-[120%] sm:min-w-[200px] max-h-[60vh] overflow-y-auto mt-2 bg-[#F5F2ED] border border-[#D8CFC4] rounded-2xl shadow-xl z-50 overflow-hidden py-2">
           {options.map((option, idx) => (
             <div
               key={idx}
