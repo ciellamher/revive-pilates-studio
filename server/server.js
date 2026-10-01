@@ -363,6 +363,20 @@ function privateBookingOf(body, cls) {
   return { isPrivate: false, privateKind: null };
 }
 
+// The other attendees of a duo (one more) or trio (two more) session.
+// Returns { guestNames } or { error }.
+const GUESTS_NEEDED = { duo: 1, trio: 2 };
+function parseGuestNames(body, privateKind) {
+  const needed = GUESTS_NEEDED[privateKind] ?? 0;
+  if (needed === 0) return { guestNames: [] };
+  const names = Array.isArray(body.guestNames) ? body.guestNames : [];
+  const clean = names.slice(0, needed).map((n) => (typeof n === 'string' ? n.trim() : ''));
+  if (clean.length < needed || clean.some((n) => !n || n.length > 100)) {
+    return { error: needed === 1 ? "Please enter the second attendee's name" : "Please enter both other attendees' names" };
+  }
+  return { guestNames: clean };
+}
+
 // Booking with a package credit: the client must be signed in, the spot is
 // confirmed straight away (the package was paid for already) and one credit of
 // the right type is used.
@@ -378,17 +392,20 @@ async function bookWithPackage(req, res, body) {
   const { isPrivate, privateKind } = privateBookingOf(body, cls);
   if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) return res.status(400).json({ error: 'Please select a spot' });
   const creditTypes = creditTypesForClass(cls.title, privateKind);
+  const guests = parseGuestNames(body, privateKind);
+  if (guests.error) return res.status(400).json({ error: guests.error });
   if (creditTypes.length === 0) return res.status(400).json({ error: 'This class cannot be booked with a package online.' });
 
   const profile = await usersRepo.upsert(pool, { email: session.email, name: body.clientName });
   const clientName = (typeof body.clientName === 'string' && body.clientName.trim()) || profile.name || session.email;
 
-  const { bookingId, problem } = await packagesRepo.bookWithCredit(pool, {
+  const { bookingId, problem, validUntil } = await packagesRepo.bookWithCredit(pool, {
     purchaseId, email: session.email, classId, spot: isPrivate ? 1 : body.spot, clientName: clientName.slice(0, 100),
-    creditTypes, isPrivate, privateKind,
+    creditTypes, isPrivate, privateKind, guestNames: guests.guestNames,
   });
   if (problem === 'no-package') return res.status(409).json({ error: 'That package is not active, or has expired.' });
   if (problem === 'no-credit') return res.status(409).json({ error: 'That package has no credits left for this class.' });
+  if (problem === 'after-expiry') return res.status(409).json({ error: `That package is valid until ${validUntil}, before this class. Please choose an earlier class or another package.` });
   if (problem === 'spot-taken') return res.status(409).json({ error: 'That spot was just taken. Please choose another one.' });
   if (problem === 'unavailable') return res.status(409).json({ error: 'This class can no longer be booked.' });
 
@@ -437,10 +454,12 @@ app.post('/api/bookings', requireUser, async (req, res, next) => {
     }
     const receipt = parseImage(body.receipt, 'The receipt');
     if (receipt.error) return res.status(400).json({ error: receipt.error });
+    const guests = parseGuestNames(body, isPrivate ? privateKind : null);
+    if (guests.error) return res.status(400).json({ error: guests.error });
 
     const { booking, problem } = await bookingsRepo.create(pool, {
       classId, clientName, clientEmail, spot: isPrivate ? 1 : body.spot, referenceId, amount,
-      isPrivate, privateKind, receipt: receipt.image,
+      isPrivate, privateKind, receipt: receipt.image, guestNames: guests.guestNames,
     });
     if (problem === 'spot-taken') {
       return res.status(409).json({ error: 'That spot was just taken. Please choose another one.' });

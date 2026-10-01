@@ -108,7 +108,7 @@ export async function setStatus(pool, id, status) {
 // Books a spot paid with one credit, inside a transaction that locks the
 // purchase, so two bookings at once cannot spend the same last credit.
 // Returns { booking } or { problem }.
-export async function bookWithCredit(pool, { purchaseId, email, classId, spot, clientName, creditTypes, isPrivate = false, privateKind = null }) {
+export async function bookWithCredit(pool, { purchaseId, email, classId, spot, clientName, creditTypes, isPrivate = false, privateKind = null, guestNames = [] }) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -147,6 +147,20 @@ export async function bookWithCredit(pool, { purchaseId, email, classId, spot, c
       return { problem: 'no-credit' }
     }
 
+    // The class must happen while the package is still valid. A package that
+    // starts at the first booking would run from now.
+    const fits = await client.query(
+      `SELECT ((c.class_date + to_timestamp(c.start_time, 'HH12:MI AM')::time) AT TIME ZONE 'Asia/Manila')
+                <= COALESCE($2::timestamptz, now() + make_interval(days => $3)) AS ok,
+              to_char(COALESCE($2::timestamptz, now() + make_interval(days => $3)) AT TIME ZONE 'Asia/Manila', 'FMDay, FMDD FMMonth YYYY') AS valid_until
+       FROM classes c WHERE c.id = $1`,
+      [classId, purchase.rows[0].expires_at, purchase.rows[0].expiry_days]
+    )
+    if (fits.rows[0] && !fits.rows[0].ok) {
+      await client.query('ROLLBACK')
+      return { problem: 'after-expiry', validUntil: fits.rows[0].valid_until }
+    }
+
     // A package that starts at the first booking starts now.
     await client.query(
       `UPDATE user_packages SET expires_at = now() + make_interval(days => expiry_days)
@@ -156,12 +170,12 @@ export async function bookWithCredit(pool, { purchaseId, email, classId, spot, c
 
     const inserted = await client.query(
       `INSERT INTO bookings
-         (class_id, client_name, client_email, spot, reference_id, amount, status, user_package_id, credit_type, is_private, private_kind)
-       SELECT c.id, $2, $3, $4, $5, '1 credit', 'confirmed', $6, $7, $8, $9
+         (class_id, client_name, client_email, spot, reference_id, amount, status, user_package_id, credit_type, is_private, private_kind, guest_names)
+       SELECT c.id, $2, $3, $4, $5, '1 credit', 'confirmed', $6, $7, $8, $9, $10
        FROM classes c
        WHERE ${BOOKABLE('$4', '$8::boolean')}
        RETURNING id`,
-      [classId, clientName, email, spot, `Package #${purchaseId}`, purchaseId, creditType, isPrivate, isPrivate ? (privateKind ?? 'solo') : null]
+      [classId, clientName, email, spot, `Package #${purchaseId}`, purchaseId, creditType, isPrivate, isPrivate ? (privateKind ?? 'solo') : null, guestNames]
     )
     if (inserted.rowCount === 0) {
       await client.query('ROLLBACK')

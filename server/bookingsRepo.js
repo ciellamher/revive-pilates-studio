@@ -6,7 +6,7 @@ const STUDIO_TIMEZONE = 'Asia/Manila'
 const CLASS_START = `((c.class_date + to_timestamp(c.start_time, 'HH12:MI AM')::time) AT TIME ZONE '${STUDIO_TIMEZONE}')`
 
 const BOOKING_WITH_CLASS = `
-  b.id, b.status, b.is_private, b.private_kind, (b.receipt IS NOT NULL) AS has_receipt, b.client_name, b.client_email, b.spot, b.reference_id, b.amount,
+  b.id, b.status, b.is_private, b.private_kind, b.guest_names, (b.receipt IS NOT NULL) AS has_receipt, b.client_name, b.client_email, b.spot, b.reference_id, b.amount,
   c.title, to_char(c.class_date, 'YYYY-MM-DD') AS date, c.start_time,
   (SELECT name FROM coaches WHERE id = c.coach_id) AS instructor, c.branch`
 
@@ -27,6 +27,7 @@ function toBooking(row) {
     clientEmail: row.client_email,
     className: bookedTitle(row),
     isPrivate: row.is_private,
+    guestNames: row.guest_names ?? [],
     hasReceipt: row.has_receipt,
     date: row.date,
     time: row.start_time,
@@ -45,6 +46,7 @@ function toRecipient(row) {
     email: row.client_email,
     spot: row.spot,
     title: bookedTitle(row),
+    guestNames: row.guest_names ?? [],
     date: row.date,
     time: row.start_time,
     instructor: row.instructor,
@@ -82,8 +84,8 @@ export const BOOKABLE = (spotParam, privateParam) => `
 export async function create(pool, input) {
   try {
     const inserted = await pool.query(
-      `INSERT INTO bookings (class_id, client_name, client_email, spot, reference_id, amount, is_private, receipt, private_kind)
-       SELECT c.id, $2, $3, $4, $5, $6, $7, $8, $9
+      `INSERT INTO bookings (class_id, client_name, client_email, spot, reference_id, amount, is_private, receipt, private_kind, guest_names)
+       SELECT c.id, $2, $3, $4, $5, $6, $7, $8, $9, $10
        FROM classes c
        WHERE ${BOOKABLE('$4', '$7::boolean')}
        RETURNING id`,
@@ -91,6 +93,7 @@ export async function create(pool, input) {
         input.classId, input.clientName, input.clientEmail, input.spot,
         input.referenceId, input.amount, input.isPrivate ?? false, input.receipt ?? null,
         input.isPrivate ? (input.privateKind ?? 'solo') : null,
+        input.guestNames ?? [],
       ]
     )
     if (inserted.rowCount === 0) return { problem: 'unavailable' }

@@ -86,6 +86,7 @@ const classDetails = (r) => `
     <strong>${escapeHtml(r.title)}</strong> with ${escapeHtml(r.instructor)}<br>
     ${formatDate(r.date)} at ${escapeHtml(r.time)}<br>
     ${escapeHtml(r.branch)} Branch, spot ${r.spot}
+    ${r.guestNames?.length ? `<br>With ${r.guestNames.map(escapeHtml).join(' and ')}` : ''}
   </p>`
 
 export function sendReminder(recipient) {

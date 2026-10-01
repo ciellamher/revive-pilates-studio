@@ -308,7 +308,7 @@ export default function AdminDashboard() {
                   <span className="font-mono text-xs text-brand-dark/70 bg-brand-sand/20 px-2 py-1 rounded shrink-0 max-w-[45%] truncate">{booking.referenceId || 'No ref'}</span>
                 </div>
                 <p className="text-sm font-bold text-brand-dark">{booking.className}</p>
-                <p className="text-xs text-brand-dark/60 mb-4">{booking.date} at {booking.time} • Spot {booking.spot}</p>
+                <p className="text-xs text-brand-dark/60 mb-4">{booking.date} at {booking.time} • {booking.isPrivate ? 'Private' : `Spot ${booking.spot}`}{booking.guestNames?.length ? ` • with ${booking.guestNames.join(' and ')}` : ''}</p>
                 <button
                   onClick={() => { setBookingError(''); setSelectedBooking(booking); }}
                   className={`w-full ${theme.bg} ${theme.text} ${theme.bgHover} text-sm font-bold px-4 py-3 rounded-lg transition-colors`}
@@ -345,7 +345,7 @@ export default function AdminDashboard() {
                         <td className="py-4 px-6 text-brand-dark text-sm">{booking.clientName}</td>
                         <td className="py-4 px-6">
                           <p className="text-sm font-bold text-brand-dark">{booking.className}</p>
-                          <p className="text-xs text-brand-dark/60">{booking.date} at {booking.time} • Spot {booking.spot}</p>
+                          <p className="text-xs text-brand-dark/60">{booking.date} at {booking.time} • {booking.isPrivate ? 'Private' : `Spot ${booking.spot}`}{booking.guestNames?.length ? ` • with ${booking.guestNames.join(' and ')}` : ''}</p>
                         </td>
                         <td className="py-4 px-6 font-mono text-xs text-brand-dark/80">{booking.referenceId}</td>
                         <td className="py-4 px-6 text-right">
@@ -804,6 +804,7 @@ export default function AdminDashboard() {
                   <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Client</p>
                   <p className="text-sm font-medium text-[#1C2C39]">{selectedBooking.clientName}</p>
                   <p className="text-[13px] text-[#1C2C39]/60 mt-0.5 break-all">{selectedBooking.clientEmail}</p>
+                  {selectedBooking.guestNames?.length > 0 && <p className="text-[13px] text-[#1C2C39]/60 mt-0.5">With {selectedBooking.guestNames.join(' and ')}</p>}
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Class</p>

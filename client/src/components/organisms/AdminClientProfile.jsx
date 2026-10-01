@@ -102,7 +102,7 @@ export default function AdminClientProfile({ email, onClose }) {
                   <li key={b.id} className="px-4 py-3 text-sm flex justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-bold text-brand-dark">{b.className}</p>
-                      <p className="text-brand-dark/60">{formatDate(b.date)} • {b.time} • {b.branch} • Spot {b.spot}</p>
+                      <p className="text-brand-dark/60">{formatDate(b.date)} • {b.time} • {b.branch} • {b.isPrivate ? 'Private' : `Spot ${b.spot}`}{b.guestNames?.length ? ` • with ${b.guestNames.join(' and ')}` : ''}</p>
                     </div>
                     <span className="text-brand-dark/60 shrink-0 text-right">{b.classCancelled ? 'Class cancelled' : BOOKING_STATUS[b.status] ?? b.status}</span>
                   </li>

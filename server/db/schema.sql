@@ -183,3 +183,6 @@ ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS starts_on    TEXT    NOT NULL
 -- Which kind of private booking it is ('solo', 'duo', 'trio'), so it can be
 -- named properly, e.g. "Reformer Flow (Duo)".
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS private_kind TEXT;
+
+-- The other people coming to a duo or trio session, by name.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_names TEXT[] NOT NULL DEFAULT '{}';

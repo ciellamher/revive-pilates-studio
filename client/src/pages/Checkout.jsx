@@ -58,6 +58,8 @@ export default function Checkout() {
   // Signed-in clients start with their own details; they can still change them.
   const { user } = useAuth();
   const [attendeeName, setAttendeeName] = useState(user?.name ?? '');
+  // A duo session has one more attendee, a trio two more.
+  const [guestNames, setGuestNames] = useState(['', '']);
   const attendeeEmail = user?.email ?? '';
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [referenceId, setReferenceId] = useState('');
@@ -95,6 +97,25 @@ export default function Checkout() {
   const [usingCredit, setUsingCredit] = useState(false);
   // A private session is paid with a private credit, a group class with one of its kind.
   const classCreditTypes = creditTypesForClass(title, isPrivate ? (privateKind ?? 'solo') : null);
+  const guestCount = isPrivate ? ({ duo: 1, trio: 2 }[privateKind] ?? 0) : 0;
+  const guests = guestNames.slice(0, guestCount);
+  const missingGuest = () => (guests.some(n => !n.trim())
+    ? (guestCount === 1 ? "Please enter the second attendee's name." : "Please enter both other attendees' names.")
+    : '');
+
+  // When the class starts, to check packages are still valid by then.
+  const classStart = (() => {
+    const [y, mo, d] = (date ?? '').split('-').map(Number);
+    const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(time ?? '');
+    if (!y || !match) return null;
+    const hours = (Number(match[1]) % 12) + (match[3].toUpperCase() === 'PM' ? 12 : 0);
+    return new Date(y, mo - 1, d, hours, Number(match[2]));
+  })();
+  // The last moment a package can be used: its expiry, or for a package not
+  // started yet, the length of its validity counted from today.
+  const validUntil = (p) => (p.expiresAt ? new Date(p.expiresAt) : new Date(Date.now() + p.expiryDays * 86400000));
+  const coversClassDate = (p) => !classStart || classStart <= validUntil(p);
+  const shortDate = (d) => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
   useEffect(() => {
     if (!user) return;
@@ -103,7 +124,7 @@ export default function Checkout() {
       .then(data => {
         const usable = data.packages.filter(p => p.status === 'active' && packageCovers(p, classCreditTypes));
         setMyPackages(usable);
-        setSelectedPackageId(usable[0]?.id ?? null);
+        setSelectedPackageId((usable.find(coversClassDate) ?? usable[0])?.id ?? null);
       })
       .catch(err => setPackageError(err.message));
     // classCreditTypes is derived from the title, which does not change on this page.
@@ -114,13 +135,14 @@ export default function Checkout() {
     if (!classId) return setPackageError('Please choose a class from the timetable first.');
     if (!isPrivate && !selectedSpot) return setPackageError('Please select your spot.');
     if (!selectedPackageId) return setPackageError('Please choose a package.');
+    if (missingGuest()) return setPackageError(missingGuest());
     if (!(await okToBookAgain())) return;
     setUsingCredit(true);
     setPackageError('');
     try {
       const res = await apiFetch('/api/bookings', {
         method: 'POST',
-        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, private: isPrivate, privateKind, clientName: attendeeName })
+        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, private: isPrivate, privateKind, guestNames: guests, clientName: attendeeName })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Something went wrong. Please try again.');
@@ -159,6 +181,7 @@ export default function Checkout() {
     if (!attendeeName.trim()) return setSubmitError('Please enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attendeeEmail.trim())) return setSubmitError('Please enter a valid email address.');
     if (!isPrivate && !selectedSpot) return setSubmitError('Please select your spot.');
+    if (missingGuest()) return setSubmitError(missingGuest());
     if (!(await okToBookAgain())) return;
 
     setSubmitting(true);
@@ -174,6 +197,7 @@ export default function Checkout() {
           spot: selectedSpot,
           private: isPrivate,
           privateKind,
+          guestNames: guests,
           referenceId,
           receipt,
           amount: `₱ ${price}`
@@ -253,7 +277,7 @@ export default function Checkout() {
 
             {/* Attendee Info */}
             <section>
-              <h2 className="text-lg font-serif font-bold text-brand-dark mb-4">Attendee</h2>
+              <h2 className="text-lg font-serif font-bold text-brand-dark mb-4">{guestCount > 0 ? 'Attendees' : 'Attendee'}</h2>
               
               <div className="border border-brand-sand/50 rounded-xl p-4 bg-white shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -280,6 +304,28 @@ export default function Checkout() {
                   />
                 </div>
                 <p className="sm:col-span-2 text-xs text-brand-dark/60">This is the email you signed in with. Your confirmation and class reminder go here.</p>
+                {guests.map((name, i) => (
+                  <div key={i} className="sm:col-span-2">
+                    <label htmlFor={`guest-${i}`} className="block text-xs font-bold text-brand-dark/60 mb-1">
+                      {guestCount === 1 ? 'Second attendee' : `Attendee ${i + 2}`}: full name
+                    </label>
+                    <input
+                      id={`guest-${i}`}
+                      type="text"
+                      required
+                      maxLength={100}
+                      value={name}
+                      onChange={(e) => setGuestNames(prev => prev.map((n, j) => (j === i ? e.target.value : n)))}
+                      placeholder={guestCount === 1 ? 'Who is joining you?' : 'Full name'}
+                      className="w-full px-3 py-2 rounded-lg border border-brand-sand focus:outline-none focus:border-brand-brown bg-white"
+                    />
+                  </div>
+                ))}
+                {guestCount > 0 && (
+                  <p className="sm:col-span-2 text-xs text-brand-dark/60">
+                    This is a {privateKind === 'duo' ? 'duo' : 'trio'} session, so {guestCount === 1 ? 'one more person' : 'two more people'} will join you.
+                  </p>
+                )}
               </div>
             </section>
 
@@ -288,7 +334,9 @@ export default function Checkout() {
               <h2 className="text-lg font-bold text-brand-dark mb-4">{isPrivate ? 'Your session' : 'Select your Spot'}</h2>
               {isPrivate ? (
                 <div className="border border-brand-sand/50 rounded-xl p-5 bg-white shadow-sm text-sm text-brand-dark/80">
-                  This is a private session: the whole room and your coach are booked just for you, so there is no spot to pick.
+                  {guestCount > 0
+                    ? `This is a ${privateKind === 'duo' ? 'duo' : 'trio'} private session: the room and your coach are booked for your group, so there is no spot to pick.`
+                    : 'This is a private session: the whole room and your coach are booked just for you, so there is no spot to pick.'}
                 </div>
               ) : (
               <SpotSelectorMap
@@ -352,14 +400,16 @@ export default function Checkout() {
                     <div role="radiogroup" aria-label="Package to use" className="space-y-3">
                       {myPackages.map((p) => {
                         const selected = selectedPackageId === p.id;
+                        const fits = coversClassDate(p);
                         return (
                           <button
                             key={p.id}
                             type="button"
                             role="radio"
                             aria-checked={selected}
+                            disabled={!fits}
                             onClick={() => setSelectedPackageId(p.id)}
-                            className={`w-full text-left border-2 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors ${selected ? 'border-brand-brown bg-brand-sand/10' : 'border-brand-sand/50 hover:bg-brand-sand/10'}`}
+                            className={`w-full text-left border-2 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${selected && fits ? 'border-brand-brown bg-brand-sand/10' : 'border-brand-sand/50 hover:bg-brand-sand/10'}`}
                           >
                             <div>
                               <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -371,9 +421,12 @@ export default function Checkout() {
                                   ...(p.unlimited && classCreditTypes.includes('unlimited') ? ['Unlimited group classes'] : []),
                                   ...classCreditTypes.filter(type => p.credits[type]).map(type => `${p.credits[type].left} ${creditLabel(type).toLowerCase()} left`),
                                 ].join(' • ')}
-                                {' • '}{p.expiresAt
-                                  ? `Valid until ${new Date(p.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                                  : 'Validity starts with this booking'}
+                              </p>
+                              <p className={`text-xs mt-1 font-medium ${fits ? 'text-brand-dark/60' : 'text-[#E02424]'}`}>
+                                {p.expiresAt
+                                  ? `Valid until ${shortDate(validUntil(p))}`
+                                  : `Starts with this booking: valid until ${shortDate(validUntil(p))}`}
+                                {!fits && ' — expires before this class'}
                               </p>
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
@@ -393,7 +446,7 @@ export default function Checkout() {
                       <button
                         type="button"
                         onClick={handleUseCredit}
-                        disabled={usingCredit || !packageCovers(myPackages.find(p => p.id === selectedPackageId) ?? { credits: {} }, classCreditTypes)}
+                        disabled={usingCredit || !myPackages.some(p => p.id === selectedPackageId && coversClassDate(p) && packageCovers(p, classCreditTypes))}
                         className="w-full sm:w-auto bg-brand-brown text-white px-8 py-3 rounded-xl font-bold hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-60"
                       >
                         {usingCredit ? 'Booking…' : 'Confirm Booking (Use 1 Credit)'}

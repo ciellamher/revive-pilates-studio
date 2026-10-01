@@ -92,7 +92,7 @@ export default function AdminClassRoster({ cls, onChanged }) {
                     <p className="font-bold text-brand-dark break-words">{b.clientName}</p>
                     <p className="text-xs text-brand-dark/60 break-all">{b.clientEmail}</p>
                     <p className="text-xs text-brand-dark/60">
-                      {b.isPrivate ? 'Private session' : `Spot ${b.spot}`} · {b.paidWithPackage ? 'Package credit' : `${b.amount || 'Direct payment'}${b.referenceId ? ` · Ref ${b.referenceId}` : ''}`}
+                      {b.isPrivate ? 'Private session' : `Spot ${b.spot}`}{b.guestNames?.length ? ` · with ${b.guestNames.join(' and ')}` : ''} · {b.paidWithPackage ? 'Package credit' : `${b.amount || 'Direct payment'}${b.referenceId ? ` · Ref ${b.referenceId}` : ''}`}
                     </p>
                   </div>
                   <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${badge}`}>{label}</span>

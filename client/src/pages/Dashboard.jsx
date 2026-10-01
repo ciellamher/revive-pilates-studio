@@ -349,7 +349,8 @@ export default function Dashboard() {
                     </div>
                     <p className="text-sm text-brand-dark/70 flex flex-wrap gap-x-4 gap-y-1">
                       <span className="flex items-center gap-1"><User size={14} /> {booking.instructor}</span>
-                      <span className="flex items-center gap-1"><MapPin size={14} /> {booking.branch} · Spot {booking.spot}</span>
+                      <span className="flex items-center gap-1"><MapPin size={14} /> {booking.branch} · {booking.isPrivate ? 'Private session' : `Spot ${booking.spot}`}</span>
+                      {booking.guestNames?.length > 0 && <span className="flex items-center gap-1"><User size={14} /> With {booking.guestNames.join(' and ')}</span>}
                       <span className="flex items-center gap-1"><Clock size={14} /> {booking.duration}</span>
                     </p>
                   </div>
@@ -407,10 +408,16 @@ export default function Dashboard() {
                     </div>
                     <p className="text-sm text-brand-dark/60 mb-4">
                       {p.status === 'pending' && `Bought ${formatDate(String(p.purchasedAt), { day: 'numeric', month: 'short', year: 'numeric' })}. The studio is checking your payment.`}
-                      {p.status === 'active' && (p.expiresAt
-                        ? `Valid until ${formatDate(String(p.expiresAt), { day: 'numeric', month: 'short', year: 'numeric' })}`
-                        : `Ready to use. Valid for ${expiryLabel(p.expiryDays)} from your first booking.`)}
-                      {p.status === 'expired' && `Expired ${formatDate(String(p.expiresAt), { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                      {p.status === 'active' && (p.expiresAt ? (() => {
+                        const daysLeft = Math.max(0, Math.ceil((new Date(p.expiresAt) - Date.now()) / 86400000));
+                        return (
+                          <>
+                            Use it to book classes until <strong className={daysLeft <= 3 ? 'text-[#E02424]' : 'text-brand-dark'}>{new Date(p.expiresAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong>
+                            {' '}({daysLeft === 0 ? 'last day' : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`})
+                          </>
+                        );
+                      })() : `Ready to use. Valid for ${expiryLabel(p.expiryDays)} from your first booking.`)}
+                      {p.status === 'expired' && `Expired on ${new Date(p.expiresAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}. Unused credits can no longer be booked.`}
                       {p.status === 'rejected' && 'The studio could not match this payment. Please message them.'}
                     </p>
                     <ul className="space-y-2 mt-auto">
