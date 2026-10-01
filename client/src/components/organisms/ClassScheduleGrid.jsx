@@ -736,8 +736,8 @@ export default function ClassScheduleGrid({ initialClassType = 'Classes', initia
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Time</dt><dd>{shortLabel(start)} – {shortLabel(end)} <span className="text-[#3A2A20]/50">({end - start} min)</span></dd></div>
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Coach</dt><dd>{cls.instructor}{coach?.specialty ? <span className="block text-xs text-[#3A2A20]/50">{coach.specialty}</span> : null}</dd></div>
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Branch</dt><dd>{cls.branch}</dd></div>
-                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Spots</dt><dd>{spotsLeft} of {cls.capacity} left</dd></div>
-                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Price</dt><dd>₱{priceFor(bookedAs).toLocaleString('en-US')} {isPrivateType(bookedAs) ? 'per session' : 'per person'}{bookedAs !== cls.title ? ` (as ${bookedAs})` : ''}</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Spots</dt><dd>{isPrivateType(cls.title) ? (cls.isFull ? 'Booked' : 'Available, whole room') : `${spotsLeft} of ${cls.capacity} left`}</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Price</dt><dd>{bookedAs === 'Private Session' ? 'from ' : ''}₱{priceFor(bookedAs).toLocaleString('en-US')} {isPrivateType(bookedAs) ? 'per session' : 'per person'}{bookedAs !== cls.title ? ` (as ${bookedAs})` : ''}</dd></div>
               </dl>
               {hint && <p className="mt-3 pt-3 border-t border-[#E8E2D9] text-xs font-bold text-brand-brown">{hint}</p>}
             </div>

@@ -90,7 +90,8 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
       }).sort((a, b) => (labelToMinutes(a.time) ?? 0) - (labelToMinutes(b.time) ?? 0)).map(cls => ({
         ...cls,
         location: cls.branch,
-        spots: `${Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0))} / ${cls.capacity} left`,
+        // A private session is booked whole, so it is either free or taken.
+        spots: isPrivateType(cls.title) ? (cls.isFull ? 'Booked' : 'Available') : `${Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0))} / ${cls.capacity} left`,
         status: cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : privateFilter && !isPrivateType(cls.title) ? 'Book Private' : 'Book Now'
       }));
       data.push({

@@ -12,6 +12,10 @@ export const PRIVATE_KINDS = [
   { key: 'clinical', title: 'Clinical Pilates', label: 'Clinical (1 person)', capacity: 1 },
 ]
 
+// A private session the admin schedules has room for the largest kind (a
+// trio), so the client can book it as any kind at checkout.
+export const PRIVATE_SESSION_CAPACITY = Math.max(...PRIVATE_KINDS.map(k => k.capacity))
+
 // What each private kind is, for the client choosing one at checkout.
 export const PRIVATE_KIND_DETAILS = {
   solo: 'One-on-one with your coach',
@@ -44,6 +48,7 @@ export const DEFAULT_CAPACITY = {
   'Mat Pilates': 10,
   'Barre': 10,
   ...Object.fromEntries(PRIVATE_KINDS.map(k => [k.title, k.capacity])),
+  'Private Session': PRIVATE_SESSION_CAPACITY,
 }
 
 // One-to-one or small-group sessions, as opposed to group classes.

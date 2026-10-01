@@ -9,7 +9,7 @@ import AdminClientProfile from '../components/organisms/AdminClientProfile';
 import AdminClassRoster from '../components/organisms/AdminClassRoster';
 import { apiFetch } from '../api/base';
 import { useNotify } from '../components/Notifications';
-import { GROUP_CLASS_TYPES, PRIVATE_KINDS, DEFAULT_CAPACITY, isPrivateType, privateKindOf, privateKind } from '../api/classTypes';
+import { GROUP_CLASS_TYPES, DEFAULT_CAPACITY, PRIVATE_FILTER, PRIVATE_SESSION_CAPACITY, isPrivateType } from '../api/classTypes';
 import { DAY_START, DAY_END, hourLabels, labelToMinutes, minutesToLabel, parseTimeInput, durationOf } from '../api/time';
 
 // A time box: type any time, or pick a whole hour from the suggestions.
@@ -82,7 +82,6 @@ export default function AdminDashboard() {
   // A class is a group class unless "Private session" is ticked; then it is
   // booked whole by one client, for one, two or three people.
   const [isPrivateClass, setIsPrivateClass] = useState(false);
-  const [privateKindKey, setPrivateKindKey] = useState('solo');
   const [experienceLevel, setExperienceLevel] = useState('Beginner');
   const [modalStartTime, setModalStartTime] = useState('08:00 AM');
   const [modalEndTime, setModalEndTime] = useState('09:00 AM');
@@ -545,7 +544,6 @@ export default function AdminDashboard() {
               setEditingClass(cls);
               setPrefilledClassData(null);
               setIsPrivateClass(isPrivateType(cls.title));
-              setPrivateKindKey(privateKindOf(cls.title) ?? 'solo');
               setClassTypeTitle(isPrivateType(cls.title) ? 'Reformer Flow' : (cls.title || 'Reformer Flow'));
               setCapacity(cls.capacity ?? DEFAULT_CAPACITY[cls.title] ?? DEFAULT_CAPACITY['Reformer Flow']);
               setCoachId(cls.coachId);
@@ -891,7 +889,7 @@ export default function AdminDashboard() {
               const localDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
               
               const newClass = {
-                title: isPrivateClass ? privateKind(privateKindKey).title : classTypeTitle,
+                title: isPrivateClass ? PRIVATE_FILTER : classTypeTitle,
                 time: timeStr,
                 date: formData.get('date'),
                 dateId: localDate.toDateString(),
@@ -956,34 +954,16 @@ export default function AdminDashboard() {
                         checked={isPrivateClass}
                         onChange={(e) => {
                           setIsPrivateClass(e.target.checked);
-                          setCapacity(e.target.checked ? privateKind(privateKindKey).capacity : (DEFAULT_CAPACITY[classTypeTitle] ?? 1));
+                          setCapacity(e.target.checked ? PRIVATE_SESSION_CAPACITY : (DEFAULT_CAPACITY[classTypeTitle] ?? 1));
                         }}
                         className="w-4 h-4 accent-[#3A2A20]"
                       />
                       Private session
                     </label>
                     {isPrivateClass && (
-                      <div className="mt-2">
-                        <div role="radiogroup" aria-label="Private session size" className="flex flex-wrap gap-2">
-                          {PRIVATE_KINDS.map(kind => (
-                            <button
-                              key={kind.key}
-                              type="button"
-                              role="radio"
-                              aria-checked={privateKindKey === kind.key}
-                              onClick={() => { setPrivateKindKey(kind.key); setCapacity(kind.capacity); }}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${privateKindKey === kind.key ? 'bg-brand-dark text-white border-brand-dark' : 'border-brand-sand text-brand-dark hover:bg-black/5'}`}
-                            >
-                              {kind.label}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="mt-2 text-xs text-brand-dark/50">
-                          {privateKindKey === 'solo'
-                            ? 'Shown as "Private Session" and booked whole by one client, who picks Private, Duo, Trio or Clinical when booking (Duo needs a capacity of 2+, Trio 3).'
-                            : `Shown to clients as "${privateKind(privateKindKey).title}" and booked whole by one client.`}
-                        </p>
-                      </div>
+                      <p className="mt-2 text-xs text-brand-dark/50">
+                        Shown to clients as "Private Session" and booked whole by one client, who chooses Private, Duo, Trio or Clinical when booking.
+                      </p>
                     )}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
