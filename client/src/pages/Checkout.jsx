@@ -59,6 +59,14 @@ export default function Checkout() {
     price = '2,800';
   }
 
+  // The summary card's button opens the payment step and brings it into view.
+  const startDirectPayment = () => {
+    setSelectedPricing('direct');
+    requestAnimationFrame(() => {
+      document.getElementById('payment-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
   const handleSubmitBooking = async () => {
     if (!classId) return setSubmitError('Please choose a class from the timetable first.');
     if (!attendeeName.trim()) return setSubmitError('Please enter your name.');
@@ -189,7 +197,7 @@ export default function Checkout() {
             </section>
 
             {selectedPricing === 'direct' && (
-              <section className="animate-fade-in -mt-4">
+              <section id="payment-details" className="animate-fade-in -mt-4 scroll-mt-28">
                 <PaymentUploadPanel
                   referenceId={referenceId}
                   onReferenceChange={setReferenceId}
@@ -286,15 +294,16 @@ export default function Checkout() {
           )}
 
           {/* Right Column: Summary Card */}
-          <div className="w-full lg:w-[400px]">
-            <div className="bg-white rounded-3xl border border-brand-sand/50 shadow-md overflow-hidden sticky top-32">
+          {/* First on phones, so the class being booked is the first thing you see. */}
+          <div className="w-full lg:w-[400px] order-first lg:order-none">
+            <div className="bg-white rounded-3xl border border-brand-sand/50 shadow-md overflow-hidden lg:sticky lg:top-32">
               
               {/* Image */}
-              <div className="h-56 border-b border-brand-sand/30 overflow-hidden">
+              <div className="h-36 sm:h-48 lg:h-56 border-b border-brand-sand/30 overflow-hidden">
                 <img src={classPreviewImg} alt="Class preview" className="w-full h-full object-cover" />
               </div>
               
-              <div className="p-8">
+              <div className="p-6 sm:p-8">
                 <h3 className="text-xl font-bold text-brand-dark mb-6">{title}</h3>
                 
                 <div className="space-y-4 mb-8">
@@ -324,16 +333,22 @@ export default function Checkout() {
                   </div>
                 </div>
                 
-                <button className={`w-full py-4 rounded-xl font-bold mb-2 transition-colors ${
+                {!booking && (
+                <button
+                  type="button"
+                  onClick={startDirectPayment}
+                  disabled={isWaitlist}
+                  className={`w-full py-4 rounded-xl font-bold mb-2 transition-colors ${
                   isWaitlist
-                    ? 'bg-brand-sand/30 text-brand-dark hover:bg-brand-sand/50'
+                    ? 'bg-brand-sand/30 text-brand-dark/60 cursor-not-allowed'
                     : 'bg-brand-brown text-white hover:bg-brand-dark shadow-sm'
                 }`}>
-                  {isWaitlist ? 'Join Waitlist' : 'Book Now'}
+                  {isWaitlist ? 'Class is full' : 'Book Now'}
                 </button>
-                {!isWaitlist && (
+                )}
+                {!isWaitlist && !booking && (
                   <div className="text-center">
-                    <p className="text-sm font-bold text-brand-dark">{slotsLeft} slots left</p>
+                    <p className="text-sm font-bold text-brand-dark">{slotsLeft} {slotsLeft === 1 ? 'slot' : 'slots'} left</p>
                     
                     {classType === 'reformer' && slotsLeft === 4 && title !== 'Private Class' && (
                       <Link 

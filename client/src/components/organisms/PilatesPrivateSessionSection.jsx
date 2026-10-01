@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import ladderBarrel1Img from '../../assets/revive-photos/ladder_barrel_1.jpg';
 
 export default function PilatesPrivateSessionSection() {
   return (
@@ -23,7 +24,7 @@ export default function PilatesPrivateSessionSection() {
           {/* Left Image */}
           <div className="flex-1 w-full max-w-[450px]">
             <div className="aspect-[3/4] overflow-hidden shadow-sm mt-0 md:mt-12">
-               <img src="/src/assets/revive-photos/ladder_barrel_1.jpg" alt="Private Session" className="w-full h-full object-cover" />
+               <img src={ladderBarrel1Img} alt="Private Session" className="w-full h-full object-cover" />
             </div>
           </div>
 

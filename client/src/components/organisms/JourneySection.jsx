@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import ladderBarrel2Img from '../../assets/revive-photos/ladder_barrel_2.jpg';
 
 export default function JourneySection() {
   return (
@@ -6,7 +7,7 @@ export default function JourneySection() {
       
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
-        <img src="/src/assets/revive-photos/ladder_barrel_2.jpg" alt="Studio background" className="w-full h-full object-cover" />
+        <img src={ladderBarrel2Img} alt="Studio background" className="w-full h-full object-cover" />
       </div>
 
       {/* Wavy Top Divider to match the section above (bg-[#F5F2ED]) */}

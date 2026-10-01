@@ -1,3 +1,5 @@
+import reformer1Img from '../../assets/revive-photos/reformer_1.jpg';
+import reformer28Img from '../../assets/revive-photos/reformer_28.jpg';
 export default function PilatesParallaxText() {
   return (
     <section className="relative w-full min-h-[70vh] flex flex-col items-center justify-center bg-brand-beige py-32 px-4 overflow-hidden pt-40">
@@ -8,7 +10,7 @@ export default function PilatesParallaxText() {
         <h1 
           className="text-7xl sm:text-[120px] md:text-[160px] lg:text-[200px] font-serif leading-none tracking-tight mb-4"
           style={{
-            backgroundImage: "url('/src/assets/revive-photos/reformer_1.jpg')",
+            backgroundImage: `url(${reformer1Img})`,
             backgroundAttachment: 'fixed',
             backgroundPosition: 'center',
             backgroundSize: 'cover',
@@ -24,7 +26,7 @@ export default function PilatesParallaxText() {
         <h1 
           className="text-6xl sm:text-[100px] md:text-[140px] lg:text-[180px] font-serif italic leading-none tracking-tighter mt-4"
           style={{
-            backgroundImage: "url('/src/assets/revive-photos/reformer_28.jpg')",
+            backgroundImage: `url(${reformer28Img})`,
             backgroundAttachment: 'fixed',
             backgroundPosition: 'center',
             backgroundSize: 'cover',

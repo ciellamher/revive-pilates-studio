@@ -1,9 +1,8 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import PageTransition from './components/PageTransition';
 import Home from './pages/Home';
 import Booking from './pages/Booking';
 import Checkout from './pages/Checkout';
-import Register from './pages/Register';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Pricing from './pages/Pricing';
@@ -21,7 +20,8 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/book" element={<Booking />} />
           <Route path="/checkout" element={<Checkout />} />
-          <Route path="/register" element={<Register />} />
+          {/* Sign-up is the same emailed link as sign-in, so old /register links go there. */}
+          <Route path="/register" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/admin" element={<RequireAuth admin><AdminDashboard /></RequireAuth>} />

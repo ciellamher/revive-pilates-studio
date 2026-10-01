@@ -113,7 +113,7 @@ export default function Navbar({ adminTheme }) {
                 )}
               </div>
             ) : (
-              <Link to="/register" className="flex items-center gap-2 bg-brand-brown text-brand-beige px-5 py-2.5 rounded-full font-medium hover:bg-brand-dark transition-all shadow-sm hover:shadow">
+              <Link to="/login" className="flex items-center gap-2 bg-brand-brown text-brand-beige px-5 py-2.5 rounded-full font-medium hover:bg-brand-dark transition-all shadow-sm hover:shadow">
                   <User size={18} />
                   <span>Log In</span>
               </Link>
@@ -153,8 +153,8 @@ export default function Navbar({ adminTheme }) {
                 <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="w-full text-left flex items-center gap-3 px-3 py-2 text-brand-dark hover:bg-brand-sand/30 rounded-lg"><LogOut size={18} /> Logout</button>
               </div>
             ) : (
-              <Link to="/register" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-center gap-2 bg-brand-brown text-brand-beige px-4 py-3 rounded-full font-medium w-full">
-                <User size={18} /> Log In / Register
+              <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-center gap-2 bg-brand-brown text-brand-beige px-4 py-3 rounded-full font-medium w-full">
+                <User size={18} /> Log In
               </Link>
             )}
           </div>

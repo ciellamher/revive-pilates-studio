@@ -175,7 +175,32 @@ export default function AdminDashboard() {
             </span>
           </h2>
           
-          <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 overflow-hidden mb-12">
+          {/* Phones get one card per booking instead of a wide table. */}
+          <div className="md:hidden space-y-3 mb-12">
+            {pendingList.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 py-8 text-center text-brand-dark/50 font-medium">No pending verifications.</div>
+            ) : pendingList.map((booking) => (
+              <div key={booking.id} className="bg-white rounded-xl shadow-sm border border-brand-sand/30 p-5">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <p className="font-bold text-brand-dark break-words">{booking.clientName}</p>
+                    <p className="text-xs text-brand-dark/50">Booking {booking.id}</p>
+                  </div>
+                  <span className="font-mono text-xs text-brand-dark/70 bg-brand-sand/20 px-2 py-1 rounded shrink-0 max-w-[45%] truncate">{booking.referenceId || 'No ref'}</span>
+                </div>
+                <p className="text-sm font-bold text-brand-dark">{booking.className}</p>
+                <p className="text-xs text-brand-dark/60 mb-4">{booking.date} at {booking.time} • Spot {booking.spot}</p>
+                <button
+                  onClick={() => { setBookingError(''); setSelectedBooking(booking); }}
+                  className={`w-full ${theme.bg} ${theme.text} ${theme.bgHover} text-sm font-bold px-4 py-3 rounded-lg transition-colors`}
+                >
+                  Verify Receipt
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block bg-white rounded-xl shadow-sm border border-brand-sand/30 overflow-hidden mb-12">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
@@ -221,7 +246,26 @@ export default function AdminDashboard() {
           </div>
 
           <h2 className="text-xl font-bold text-brand-dark mb-4">Recently Resolved</h2>
-          <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 overflow-hidden">
+          <div className="md:hidden bg-white rounded-xl shadow-sm border border-brand-sand/30 divide-y divide-brand-sand/20">
+            {resolvedList.length === 0 ? (
+              <p className="py-4 text-center text-brand-dark/50 text-sm">No resolved bookings yet.</p>
+            ) : resolvedList.map((booking) => (
+              <div key={booking.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-brand-dark font-medium truncate">{booking.clientName}</p>
+                  <p className="text-xs text-brand-dark/50">Booking {booking.id}</p>
+                </div>
+                <div className="shrink-0">
+                        {booking.status === 'confirmed' ? (
+                          <span className="text-green-600 font-bold flex items-center gap-1 text-sm"><CheckCircle size={14}/> Confirmed</span>
+                        ) : (
+                          <span className="text-red-600 font-bold flex items-center gap-1 text-sm"><XCircle size={14}/> Rejected</span>
+                        )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block bg-white rounded-xl shadow-sm border border-brand-sand/30 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse opacity-70 min-w-[500px]">
                 <thead>
@@ -292,7 +336,7 @@ export default function AdminDashboard() {
                 setClassFormError('');
                 setIsClassModalOpen(true);
               }}
-              className={`${theme.bg} ${theme.text} ${theme.bgHover} px-5 py-2.5 rounded-[10px] font-bold text-[13px] flex items-center gap-2 transition-colors shadow-sm`}
+              className={`${theme.bg} ${theme.text} ${theme.bgHover} px-5 py-2.5 rounded-[10px] font-bold text-[13px] flex items-center gap-2 whitespace-nowrap transition-colors shadow-sm`}
             >
               <Plus size={16} /> Add Class
             </button>
@@ -417,7 +461,24 @@ export default function AdminDashboard() {
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 overflow-hidden overflow-x-auto">
+          <div className="md:hidden space-y-3">
+            {filteredClients.length > 0 ? filteredClients.map((user) => (
+              <div key={user.email} className="bg-white rounded-xl shadow-sm border border-brand-sand/30 p-5 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-bold text-brand-dark break-words">{user.name || <span className="font-normal opacity-50">No name yet</span>}</p>
+                  <p className="text-sm text-brand-dark/70 break-all">{user.email}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-lg font-bold text-brand-dark leading-none">{user.bookings}</p>
+                  <p className="text-[11px] text-brand-dark/50 mt-1">{user.bookings === 1 ? 'booking' : 'bookings'}</p>
+                </div>
+              </div>
+            )) : (
+              <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 py-8 text-center text-brand-dark/50 font-medium">No clients found matching your search.</div>
+            )}
+          </div>
+
+          <div className="hidden md:block bg-white rounded-xl shadow-sm border border-brand-sand/30 overflow-hidden overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="bg-brand-sand/10 border-b border-brand-sand/50">
@@ -536,7 +597,11 @@ export default function AdminDashboard() {
             {MENU_ITEMS.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={(e) => {
+                  setActiveTab(item.id);
+                  // On phones the menu is a sideways strip: keep the picked item in view.
+                  e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+                }}
                 className={`flex-none flex items-center gap-4 px-6 lg:px-8 py-3.5 transition-colors text-left border-b-2 lg:border-b-0 lg:border-l-4 ${
                   activeTab === item.id 
                     ? `${theme.pillBg} ${theme.border} text-brand-dark font-bold` 
@@ -719,10 +784,10 @@ export default function AdminDashboard() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Date</label>
-                      <input name="date" required type="date" defaultValue={
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="col-span-2 sm:col-span-1">
+                      <label htmlFor="class-date" className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Date</label>
+                      <input id="class-date" name="date" required type="date" defaultValue={
                         editingClass?.dateId ? new Date(new Date(editingClass.dateId).getTime() - (new Date(editingClass.dateId).getTimezoneOffset() * 60000)).toISOString().split('T')[0] : prefilledClassData?.date || ''
                       } className="w-full border border-brand-sand/50 rounded-lg px-4 py-3 focus:outline-none focus:border-brand-brown font-medium text-sm" />
                     </div>
@@ -781,7 +846,7 @@ export default function AdminDashboard() {
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Experience Level</label>
                       <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-30 relative">

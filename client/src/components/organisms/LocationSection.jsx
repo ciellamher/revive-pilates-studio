@@ -1,4 +1,6 @@
 import { MapPin, Phone } from 'lucide-react';
+import matPilates9Img from '../../assets/revive-photos/mat_pilates_9.jpg';
+import reformer9Img from '../../assets/revive-photos/reformer_9.jpg';
 
 export default function LocationSection() {
   return (
@@ -8,7 +10,7 @@ export default function LocationSection() {
         {/* Angeles City Location */}
         <div className="relative w-full h-[400px] md:h-[450px] rounded-[32px] overflow-hidden shadow-lg group">
           <img 
-            src="/src/assets/revive-photos/mat_pilates_9.jpg" 
+            src={matPilates9Img} 
             alt="Revive Studio Angeles City" 
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" 
           />
@@ -42,7 +44,7 @@ export default function LocationSection() {
         {/* San Fernando Location */}
         <div className="relative w-full h-[400px] md:h-[450px] rounded-[32px] overflow-hidden shadow-lg group">
           <img 
-            src="/src/assets/revive-photos/reformer_9.jpg" 
+            src={reformer9Img} 
             alt="Revive Studio San Fernando" 
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" 
           />

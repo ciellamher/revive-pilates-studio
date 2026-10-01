@@ -1,10 +1,11 @@
+import studioEmpty1Img from '../../assets/revive-photos/studio_empty_1.jpg';
 export default function NewsletterSection() {
   return (
     <section className="relative w-full min-h-[700px] flex items-center justify-center pt-32 pb-24 overflow-hidden">
       
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
-        <img src="/src/assets/revive-photos/studio_empty_1.jpg" alt="Studio background" className="w-full h-full object-cover" />
+        <img src={studioEmpty1Img} alt="Studio background" className="w-full h-full object-cover" />
       </div>
 
       {/* Wavy Top Divider to match the section above (bg-[#F5F2ED]) */}

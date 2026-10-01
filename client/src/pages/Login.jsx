@@ -7,7 +7,8 @@ import { API_BASE } from '../api/base';
 export default function Login() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: ''
+    email: '',
+    name: ''
   });
   const [status, setStatus] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
@@ -29,7 +30,7 @@ export default function Login() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: formData.email }),
+        body: JSON.stringify({ email: formData.email, name: formData.name }),
       });
       
       const data = await res.json();
@@ -60,21 +61,21 @@ export default function Login() {
              My <span className="italic font-normal">account.</span>
            </h1>
            <p className="text-brand-dark/70 text-sm md:text-base font-medium mb-8 max-w-md leading-relaxed">
-             Password-free sign-in. Use the same email you booked with.
+             Password-free sign-in, and sign-up. Use the same email you booked with.
            </p>
            
            <ul className="space-y-5 text-[13px] md:text-sm text-brand-dark/70 font-medium leading-relaxed max-w-md">
              <li className="flex gap-2">
                <span className="text-brand-dark font-bold">•</span>
-               <span><strong className="text-brand-dark">Buy a class pack:</strong> on the book page or below after you sign in. The studio can also assign credits.</span>
+               <span><strong className="text-brand-dark">Enter your email:</strong> we'll send you a one-time sign-in link. New here? The same link creates your account.</span>
              </li>
              <li className="flex gap-2">
                <span className="text-brand-dark font-bold">•</span>
-               <span><strong className="text-brand-dark">Book a class:</strong> each group class uses one credit.</span>
+               <span><strong className="text-brand-dark">Book a class:</strong> pick a time and your spot on the schedule, then send your payment reference.</span>
              </li>
              <li className="flex gap-2">
                <span className="text-brand-dark font-bold">•</span>
-               <span><strong className="text-brand-dark">Enter your email:</strong> we'll send a one-time link to manage bookings.</span>
+               <span><strong className="text-brand-dark">Stay in the loop:</strong> we email you when your booking is confirmed and again about 12 hours before class.</span>
              </li>
            </ul>
         </div>
@@ -85,14 +86,30 @@ export default function Login() {
           
           <form onSubmit={handleSubmit} className="flex flex-col gap-8">
             <div>
-              <label className="block text-[#4A1D1D] font-bold text-[10px] tracking-widest uppercase mb-2">Email</label>
+              <label htmlFor="login-email" className="block text-[#4A1D1D] font-bold text-[10px] tracking-widest uppercase mb-2">Email</label>
               <input 
+                id="login-email"
                 type="email" 
                 name="email"
                 required
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="you@example.com"
+                className="w-full bg-[#F5F2ED] border border-[#E8E2D9] rounded-[10px] px-5 py-3.5 text-brand-dark text-sm outline-none focus:border-[#4A1D1D]/30 transition-colors placeholder:text-brand-dark/40"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="login-name" className="block text-[#4A1D1D] font-bold text-[10px] tracking-widest uppercase mb-2">Name <span className="normal-case tracking-normal font-medium text-brand-dark/50">(first time only)</span></label>
+              <input 
+                id="login-name"
+                type="text" 
+                name="name"
+                autoComplete="name"
+                maxLength={100}
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Your full name"
                 className="w-full bg-[#F5F2ED] border border-[#E8E2D9] rounded-[10px] px-5 py-3.5 text-brand-dark text-sm outline-none focus:border-[#4A1D1D]/30 transition-colors placeholder:text-brand-dark/40"
               />
             </div>
@@ -120,7 +137,7 @@ export default function Login() {
           </form>
           
           <div className="mt-8 pt-8 border-t border-brand-dark/10 text-center text-[12px] text-brand-dark/60 font-medium">
-            Need credits first? <Link to="/packages" className="text-brand-dark hover:text-brand-brown underline underline-offset-4 decoration-brand-dark/30 hover:decoration-brand-brown">Buy a class pack</Link> · <Link to="/book" className="text-brand-dark hover:text-brand-brown underline underline-offset-4 decoration-brand-dark/30 hover:decoration-brand-brown">Book a class</Link>
+            Just looking? <Link to="/pricing" className="text-brand-dark hover:text-brand-brown underline underline-offset-4 decoration-brand-dark/30 hover:decoration-brand-brown">See pricing</Link> · <Link to="/book" className="text-brand-dark hover:text-brand-brown underline underline-offset-4 decoration-brand-dark/30 hover:decoration-brand-brown">Book a class</Link>
           </div>
         </div>
       </main>

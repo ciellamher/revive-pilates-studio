@@ -135,7 +135,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
 
 
           {/* Top Date Scroller */}
-          <div className="flex items-center gap-4 mb-8 overflow-x-auto hide-scrollbar">
+          <div className="flex items-center gap-1 sm:gap-4 mb-8">
             {/* Back Arrow */}
             <button 
               onClick={() => setWeekOffset(prev => prev - 1)}
@@ -144,7 +144,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
             
-            <div className="flex flex-1 gap-2 md:gap-4 justify-between items-center px-4">
+            <div className="flex flex-1 min-w-0 gap-0.5 sm:gap-2 md:gap-4 justify-between items-center sm:px-4">
               {currentWeekDays.map((d) => {
                 const isSelected = d.id === selectedDayId;
                 const pastStyle = d.isPast && !isSelected ? 'opacity-40' : '';
@@ -152,10 +152,10 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                   <button 
                     key={d.id}
                     onClick={() => setSelectedDayId(d.id)}
-                    className={`flex flex-col items-center justify-center py-2 px-4 md:px-6 rounded-[24px] transition-colors min-w-[70px] ${isSelected ? (location === 'Angeles City' ? 'bg-white text-[#3A2A20]' : 'bg-[#2A180E] text-white') : (location === 'Angeles City' ? 'text-white hover:bg-white/10' : 'text-[#3A2A20] hover:bg-black/5')} ${pastStyle}`}
+                    className={`flex flex-1 sm:flex-none min-w-0 flex-col items-center justify-center py-2 px-0 sm:px-4 md:px-6 rounded-2xl sm:rounded-[24px] transition-colors sm:min-w-[70px] ${isSelected ? (location === 'Angeles City' ? 'bg-white text-[#3A2A20]' : 'bg-[#2A180E] text-white') : (location === 'Angeles City' ? 'text-white hover:bg-white/10' : 'text-[#3A2A20] hover:bg-black/5')} ${pastStyle}`}
                   >
-                    <span className="text-xs font-medium mb-1">{d.day}</span>
-                    <span className="text-xl font-bold">{d.date}</span>
+                    <span className="text-[11px] sm:text-xs font-medium mb-1">{d.day}</span>
+                    <span className="text-lg sm:text-xl font-bold">{d.date}</span>
                   </button>
                 )
               })}
@@ -218,7 +218,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                   <h3 className={`text-2xl font-sans font-bold ${location === 'Angeles City' ? 'text-white' : 'text-brand-dark'}`}>
                     {dayGroup.dateHeading}
                   </h3>
-                  <span className={`text-sm font-medium ${location === 'Angeles City' ? 'text-white/60' : 'text-brand-dark/60'}`}>{dayGroup.classesCount} classes</span>
+                  <span className={`text-sm font-medium ${location === 'Angeles City' ? 'text-white/60' : 'text-brand-dark/60'}`}>{dayGroup.classesCount} {dayGroup.classesCount === 1 ? 'class' : 'classes'}</span>
                 </div>
                 
                 <div className="flex flex-col gap-4">
