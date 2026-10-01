@@ -158,6 +158,10 @@ Routes marked *admin* need a signed-in admin session, and *signed in* routes nee
 - **Database wake-up:** the free Neon database pauses when idle, so the first request after a quiet spell can take a second or two longer.
 - **School email filtering:** some school email systems (such as Microsoft 365) may hold sign-in emails in Junk or quarantine.
 
+## AI Usage Credit
+
+This project was developed with the assistance of Claude for generating boilerplate code, debugging, and step-by-step guidance on features outside the core scope. The original UI design (created in Figma), core business logic, domain research, and database schema were all authored manually by me. See `AI-USAGE.md` for a detailed breakdown.
+
 ## Author
 
 Graciella Mhervie D. Jimenez | 6APSI | CS-402
