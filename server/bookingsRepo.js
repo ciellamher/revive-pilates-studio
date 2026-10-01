@@ -6,9 +6,17 @@ const STUDIO_TIMEZONE = 'Asia/Manila'
 const CLASS_START = `((c.class_date + to_timestamp(c.start_time, 'HH12:MI AM')::time) AT TIME ZONE '${STUDIO_TIMEZONE}')`
 
 const BOOKING_WITH_CLASS = `
-  b.id, b.status, b.is_private, (b.receipt IS NOT NULL) AS has_receipt, b.client_name, b.client_email, b.spot, b.reference_id, b.amount,
+  b.id, b.status, b.is_private, b.private_kind, (b.receipt IS NOT NULL) AS has_receipt, b.client_name, b.client_email, b.spot, b.reference_id, b.amount,
   c.title, to_char(c.class_date, 'YYYY-MM-DD') AS date, c.start_time,
   (SELECT name FROM coaches WHERE id = c.coach_id) AS instructor, c.branch`
+
+// "Reformer Flow (Duo)" for a group class booked whole; private classes keep
+// their own title ("Duo Private").
+const KIND_LABEL = { solo: 'Private', duo: 'Duo', trio: 'Trio' }
+function bookedTitle(row) {
+  if (!row.is_private || /private|clinical/i.test(row.title)) return row.title
+  return `${row.title} (${KIND_LABEL[row.private_kind] ?? 'Private'})`
+}
 
 // What the admin's Pending Verifications table reads.
 function toBooking(row) {
@@ -17,7 +25,7 @@ function toBooking(row) {
     status: row.status,
     clientName: row.client_name,
     clientEmail: row.client_email,
-    className: row.is_private ? `${row.title} (Private)` : row.title,
+    className: bookedTitle(row),
     isPrivate: row.is_private,
     hasReceipt: row.has_receipt,
     date: row.date,
@@ -36,7 +44,7 @@ function toRecipient(row) {
     name: row.client_name,
     email: row.client_email,
     spot: row.spot,
-    title: row.is_private ? `${row.title} (Private)` : row.title,
+    title: bookedTitle(row),
     date: row.date,
     time: row.start_time,
     instructor: row.instructor,
@@ -66,7 +74,7 @@ export const BOOKABLE = (spotParam, privateParam) => `
     WHERE x.class_id = c.id AND x.status NOT IN ('rejected', 'cancelled')
       AND (x.is_private OR ${privateParam})
   )
-  AND (NOT ${privateParam} OR c.title ILIKE '%reformer%')`
+  AND (NOT ${privateParam} OR c.title ~* '(reformer|private|clinical)')`
 
 // Returns { booking } on success, or { problem } naming why it was refused.
 // The checks and the insert are one statement, so a class cannot be cancelled
@@ -74,14 +82,15 @@ export const BOOKABLE = (spotParam, privateParam) => `
 export async function create(pool, input) {
   try {
     const inserted = await pool.query(
-      `INSERT INTO bookings (class_id, client_name, client_email, spot, reference_id, amount, is_private, receipt)
-       SELECT c.id, $2, $3, $4, $5, $6, $7, $8
+      `INSERT INTO bookings (class_id, client_name, client_email, spot, reference_id, amount, is_private, receipt, private_kind)
+       SELECT c.id, $2, $3, $4, $5, $6, $7, $8, $9
        FROM classes c
        WHERE ${BOOKABLE('$4', '$7::boolean')}
        RETURNING id`,
       [
         input.classId, input.clientName, input.clientEmail, input.spot,
         input.referenceId, input.amount, input.isPrivate ?? false, input.receipt ?? null,
+        input.isPrivate ? (input.privateKind ?? 'solo') : null,
       ]
     )
     if (inserted.rowCount === 0) return { problem: 'unavailable' }

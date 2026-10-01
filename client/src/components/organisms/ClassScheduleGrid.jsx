@@ -3,8 +3,8 @@ import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
 import { API_BASE, apiFetch } from '../../api/base';
-import { checkoutClassState, showsAsPrivate, privateFilterState } from '../../api/checkoutState';
-import { CLASS_TYPES, isPrivateType, priceFor } from '../../api/classTypes';
+import { checkoutClassState, matchesPrivateFilter, privateFilterState } from '../../api/checkoutState';
+import { GROUP_CLASS_TYPES, isPrivateType, priceFor } from '../../api/classTypes';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotify } from '../Notifications';
 import { DAY_START, DAY_END, labelToMinutes, minutesToLabel, durationOf, shortLabel } from '../../api/time';
@@ -79,15 +79,15 @@ function layoutDay(events) {
   return placed;
 }
 
-// Filter choices. 'Private Sessions' shows private classes, and Reformer
-// classes nobody has booked yet, which can be taken as a private session.
-const CLASS_TYPE_OPTIONS = ['Classes', ...CLASS_TYPES];
+// Class filter choices. The private ones show sessions of that kind plus
+// empty Reformer classes that can be booked as one. Trio appears only when a
+// trio session is on the schedule.
+const BASE_CLASS_OPTIONS = ['Classes', ...GROUP_CLASS_TYPES, 'Private Session', 'Duo Private'];
 
-export default function ClassScheduleGrid({ initialCategory = 'All categories', hideTitle = false, adminHeader = null, onClassClick = null, onEmptySlotClick = null, branch = null, globalLocation = null, setGlobalLocation = null, refreshKey = 0, view = 'calendar' }) {
+export default function ClassScheduleGrid({ initialClassType = 'Classes', hideTitle = false, adminHeader = null, onClassClick = null, onEmptySlotClick = null, branch = null, globalLocation = null, setGlobalLocation = null, refreshKey = 0, view = 'calendar' }) {
   const isAdmin = Boolean(onClassClick);
-  const [classType, setClassType] = useState('Classes');
+  const [classType, setClassType] = useState(initialClassType);
   const [instructor, setInstructor] = useState('Instructor');
-  const [category, setCategory] = useState(initialCategory);
 
   const [localLocation, setLocalLocation] = useState('Location');
   const location = globalLocation !== null ? globalLocation : localLocation;
@@ -147,9 +147,9 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
         if (cls.dateId !== dateId) return false;
         if (cls.isCancelled && !(isAdmin && showCancelled)) return false;
         if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return false;
-        if (classType !== 'Classes' && cls.title !== classType) return false;
-        if (category === 'Private Sessions' && !showsAsPrivate(cls)) return false;
-        if (category === 'Group Classes' && isPrivateType(cls.title)) return false;
+        if (classType !== 'Classes') {
+          if (isPrivateType(classType) ? !matchesPrivateFilter(cls, classType) : cls.title !== classType) return false;
+        }
         if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
         return true;
       })
@@ -182,7 +182,8 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
     }
   }, [availableInstructors, instructor]);
 
-  const linkState = (cls) => (category === 'Private Sessions' ? privateFilterState(cls) : checkoutClassState(cls));
+  const linkState = (cls) => (isPrivateType(classType) ? privateFilterState(cls, classType) : checkoutClassState(cls));
+  const classOptions = classes.some(c => c.title === 'Trio Private') ? [...BASE_CLASS_OPTIONS, 'Trio Private'] : BASE_CLASS_OPTIONS;
 
   // ---- Admin drag and drop -------------------------------------------------
   // Dragging a class moves it to another time or day; dragging its bottom
@@ -500,15 +501,6 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
         {/* Pill-shaped filter bar. In admin the branch is picked in the sidebar, so there is no Location filter here. */}
         <div className="relative z-30 max-w-[900px] mx-auto mb-12">
           <div className={`flex flex-col md:flex-row border rounded-2xl md:rounded-full bg-transparent ${isDarkTheme ? 'border-white/30 text-white' : 'border-[#D8CFC4] text-[#3A2A20]'}`}>
-            <div className={`flex-1 relative border-b md:border-b-0 md:border-r ${isDarkTheme ? 'border-white/30' : 'border-[#D8CFC4]'}`}>
-              <CustomDropdown
-                value={category}
-                onChange={setCategory}
-                options={['All categories', 'Group Classes', 'Private Sessions']}
-                placeholder="All categories"
-              />
-            </div>
-
             {!branch && (
               <div className={`flex-1 relative border-b md:border-b-0 md:border-r ${isDarkTheme ? 'border-white/30' : 'border-[#D8CFC4]'}`}>
                 <CustomDropdown
@@ -524,7 +516,7 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
               <CustomDropdown
                 value={classType}
                 onChange={setClassType}
-                options={CLASS_TYPE_OPTIONS}
+                options={classOptions}
                 placeholder="Classes"
               />
             </div>
@@ -728,6 +720,8 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
         const [y, m, dd] = (cls.date ?? '').split('-').map(Number);
         const dateText = cls.date ? new Date(y, m - 1, dd).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : cls.dateId;
         const status = cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : null;
+        // Under a private filter a group class is offered as that private kind.
+        const bookedAs = !isAdmin && isPrivateType(classType) && cls.title !== classType ? classType : cls.title;
         const width = 272;
         const left = rect.right + 8 + width < window.innerWidth ? rect.right + 8 : Math.max(8, rect.left - width - 8);
         const top = Math.min(Math.max(8, rect.top), window.innerHeight - 240);
@@ -747,7 +741,7 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Coach</dt><dd>{cls.instructor}{coach?.specialty ? <span className="block text-xs text-[#3A2A20]/50">{coach.specialty}</span> : null}</dd></div>
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Branch</dt><dd>{cls.branch}</dd></div>
                 <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Spots</dt><dd>{spotsLeft} of {cls.capacity} left</dd></div>
-                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Price</dt><dd>₱{priceFor(cls.title).toLocaleString('en-US')} per person</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Price</dt><dd>₱{priceFor(bookedAs).toLocaleString('en-US')} {isPrivateType(bookedAs) ? 'per session' : 'per person'}{bookedAs !== cls.title ? ` (as ${bookedAs})` : ''}</dd></div>
               </dl>
               {hint && <p className="mt-3 pt-3 border-t border-[#E8E2D9] text-xs font-bold text-brand-brown">{hint}</p>}
             </div>

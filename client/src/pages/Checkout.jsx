@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, User, Ticket } from 'lucide-react';
 import PaymentUploadPanel from '../components/organisms/PaymentUploadPanel';
 import { apiFetch } from '../api/base';
-import { creditTypesForClass, creditLabel } from '../api/packages';
+import { creditTypesForClass, creditLabel, packageCovers } from '../api/packages';
 import { priceFor } from '../api/classTypes';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotify } from '../components/Notifications';
@@ -51,7 +51,8 @@ export default function Checkout() {
     branch = 'Angeles',
     capacity,
     takenSpots = [],
-    isPrivate = false
+    isPrivate = false,
+    privateKind = null
   } = checkoutState || {};
 
   // Signed-in clients start with their own details; they can still change them.
@@ -93,15 +94,14 @@ export default function Checkout() {
   const [packageError, setPackageError] = useState('');
   const [usingCredit, setUsingCredit] = useState(false);
   // A private session is paid with a private credit, a group class with one of its kind.
-  const classCreditTypes = isPrivate ? ['private'] : creditTypesForClass(title);
-  const creditsLeftFor = (purchase) => classCreditTypes.reduce((sum, type) => sum + (purchase.credits[type]?.left ?? 0), 0);
+  const classCreditTypes = creditTypesForClass(title, isPrivate ? (privateKind ?? 'solo') : null);
 
   useEffect(() => {
     if (!user) return;
     apiFetch('/api/me/packages')
       .then(res => (res.ok ? res.json() : Promise.reject(new Error('Could not load your packages'))))
       .then(data => {
-        const usable = data.packages.filter(p => p.status === 'active' && classCreditTypes.some(type => (p.credits[type]?.left ?? 0) > 0));
+        const usable = data.packages.filter(p => p.status === 'active' && packageCovers(p, classCreditTypes));
         setMyPackages(usable);
         setSelectedPackageId(usable[0]?.id ?? null);
       })
@@ -120,7 +120,7 @@ export default function Checkout() {
     try {
       const res = await apiFetch('/api/bookings', {
         method: 'POST',
-        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, private: isPrivate, clientName: attendeeName })
+        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, private: isPrivate, privateKind, clientName: attendeeName })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Something went wrong. Please try again.');
@@ -173,6 +173,7 @@ export default function Checkout() {
           clientEmail: attendeeEmail,
           spot: selectedSpot,
           private: isPrivate,
+          privateKind,
           referenceId,
           receipt,
           amount: `₱ ${price}`
@@ -366,8 +367,13 @@ export default function Checkout() {
                                 <span className="font-bold text-brand-dark">{p.name}</span>
                               </div>
                               <p className="text-sm text-brand-dark/70">
-                                {classCreditTypes.filter(type => p.credits[type]).map(type => `${p.credits[type].left} ${creditLabel(type).toLowerCase()} left`).join(' • ')}
-                                {' • '}Valid until {new Date(p.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                {[
+                                  ...(p.unlimited && classCreditTypes.includes('unlimited') ? ['Unlimited group classes'] : []),
+                                  ...classCreditTypes.filter(type => p.credits[type]).map(type => `${p.credits[type].left} ${creditLabel(type).toLowerCase()} left`),
+                                ].join(' • ')}
+                                {' • '}{p.expiresAt
+                                  ? `Valid until ${new Date(p.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                                  : 'Validity starts with this booking'}
                               </p>
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
@@ -387,7 +393,7 @@ export default function Checkout() {
                       <button
                         type="button"
                         onClick={handleUseCredit}
-                        disabled={usingCredit || creditsLeftFor(myPackages.find(p => p.id === selectedPackageId) ?? { credits: {} }) === 0}
+                        disabled={usingCredit || !packageCovers(myPackages.find(p => p.id === selectedPackageId) ?? { credits: {} }, classCreditTypes)}
                         className="w-full sm:w-auto bg-brand-brown text-white px-8 py-3 rounded-xl font-bold hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-60"
                       >
                         {usingCredit ? 'Booking…' : 'Confirm Booking (Use 1 Credit)'}

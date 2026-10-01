@@ -3,9 +3,9 @@ import Navbar from '../components/organisms/Navbar';
 import Footer from '../components/organisms/Footer';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../api/base';
-import { formatPeso, expiryLabel } from '../api/packages';
+import { formatPeso, validityText, creditsSummary, PACKAGE_CATEGORIES } from '../api/packages';
 
-const CATEGORIES = ['Starter Packages', 'Group Classes', 'Private Classes', 'Clinical Pilates'];
+const CATEGORIES = PACKAGE_CATEGORIES;
 
 // Services the studio offers that are not bought as a package online.
 const EXTRAS = {
@@ -28,8 +28,11 @@ function PackageCard({ pkg }) {
           <p className="text-[11px] font-bold uppercase tracking-widest text-[#3B657F] mb-3">{pkg.subtitle}</p>
         )}
         <h3 className="text-[16px] font-medium text-[#3A2A20] mb-2">{pkg.title}</h3>
-        {pkg.sessions && (
-          <p className="text-[13px] text-[#3A2A20]/80 mb-2">{pkg.sessions}</p>
+        {pkg.price !== undefined && !pkg.askStudio && (
+          <p className="text-[13px] text-[#3A2A20]/80 mb-2">{creditsSummary(pkg)}</p>
+        )}
+        {pkg.description && (
+          <p className="text-[12px] text-[#3A2A20]/70 mb-2">{pkg.description}</p>
         )}
         
         <div className="flex justify-center items-end gap-1 my-6 flex-grow">
@@ -42,7 +45,10 @@ function PackageCard({ pkg }) {
         
         <div className="mt-auto pt-4 flex flex-col items-center gap-5 shrink-0">
           {pkg.expiryDays && (
-            <p className="text-[13px] italic text-[#3A2A20]/70">Expires {expiryLabel(pkg.expiryDays)} after purchase.</p>
+            <p className="text-[13px] italic text-[#3A2A20]/70">{validityText(pkg)}.</p>
+          )}
+          {pkg.shareable && (
+            <p className="text-[12px] text-[#3A2A20]/70 uppercase tracking-wider font-semibold">Shareable</p>
           )}
           {pkg.note && (
             <p className="text-[12px] text-[#3A2A20]/60 uppercase tracking-wider font-semibold">*{pkg.note}*</p>

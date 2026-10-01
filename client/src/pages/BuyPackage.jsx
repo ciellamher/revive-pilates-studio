@@ -5,7 +5,7 @@ import Navbar from '../components/organisms/Navbar';
 import Footer from '../components/organisms/Footer';
 import PaymentUploadPanel from '../components/organisms/PaymentUploadPanel';
 import { API_BASE, apiFetch } from '../api/base';
-import { formatPeso, expiryLabel, creditLabel } from '../api/packages';
+import { formatPeso, creditLabel, validityText, creditsSummary } from '../api/packages';
 
 // Buying a package: pay by GCash or BPI, send the reference number, and the
 // studio activates the package once it has checked the payment.
@@ -68,21 +68,28 @@ export default function BuyPackage() {
                 <div className="bg-white rounded-3xl border border-brand-sand/50 shadow-md p-6 sm:p-8 lg:sticky lg:top-32">
                   {pkg.subtitle && <p className="text-[11px] font-bold uppercase tracking-widest text-[#3B657F] mb-2">{pkg.subtitle}</p>}
                   <h2 className="text-xl font-bold text-brand-dark mb-1">{pkg.title}</h2>
-                  {pkg.sessions && <p className="text-sm text-brand-dark/70">{pkg.sessions}</p>}
+                  <p className="text-sm text-brand-dark/70">{creditsSummary(pkg)}</p>
+                  {pkg.description && <p className="text-sm text-brand-dark/60 mt-1">{pkg.description}</p>}
                   <p className="text-4xl font-sans text-brand-dark my-6">{formatPeso(pkg.price)}</p>
                   <ul className="space-y-3 text-sm text-brand-dark/80">
+                    {pkg.unlimited && (
+                      <li className="flex items-center gap-3">
+                        <Package size={18} className="text-brand-dark/40 shrink-0" />
+                        {creditLabel('unlimited')}, both branches
+                      </li>
+                    )}
                     {Object.entries(pkg.credits).map(([type, count]) => (
                       <li key={type} className="flex items-center gap-3">
                         <Package size={18} className="text-brand-dark/40 shrink-0" />
-                        {count} × {creditLabel(type)} {count === 1 ? 'session' : 'sessions'}
+                        {count} × {creditLabel(type).toLowerCase()}
                       </li>
                     ))}
                     <li className="flex items-center gap-3">
                       <CalendarClock size={18} className="text-brand-dark/40 shrink-0" />
-                      Valid for {expiryLabel(pkg.expiryDays)} from activation
+                      {validityText(pkg)}
                     </li>
                   </ul>
-                  {pkg.note && <p className="mt-4 text-xs uppercase tracking-wider font-semibold text-brand-dark/50">{pkg.note}</p>}
+                  {pkg.shareable && <p className="mt-4 text-xs uppercase tracking-wider font-semibold text-brand-dark/50">Shareable</p>}
                 </div>
               </section>
 
@@ -103,7 +110,7 @@ export default function BuyPackage() {
                 ) : (
                   <>
                     <p className="text-brand-dark/70 mb-6">
-                      Send {formatPeso(pkg.price)} by BPI or GCash, then enter the reference number from your receipt. The validity period starts when the studio activates your package.
+                      Send {formatPeso(pkg.price)} by BPI or GCash, then enter the reference number from your receipt. {pkg.startsOn === 'first-booking' ? 'The validity period starts with your first booking.' : 'The validity period starts when the studio activates your package.'}
                     </p>
                     <PaymentUploadPanel
                       referenceId={referenceId}

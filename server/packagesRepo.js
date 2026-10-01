@@ -16,6 +16,7 @@ const REMAINING = Object.fromEntries(CREDIT_TYPES.map((type) => [type, `
 const COLUMNS = `
   up.id, up.user_email, up.package_id, up.name, up.price, up.expiry_days,
   up.reference_id, up.status, up.created_at, (up.receipt IS NOT NULL) AS has_receipt, up.activated_at, up.expires_at,
+  up.unlimited, up.starts_on,
   (up.status = 'active' AND up.expires_at <= now()) AS is_expired,
   (SELECT name FROM users WHERE email = up.user_email) AS client_name,
   ${CREDIT_TYPES.map((type) => `up.${type}_credits, ${REMAINING[type]}`).join(',')}`
@@ -39,6 +40,11 @@ function toPurchase(row) {
     purchasedAt: row.created_at,
     activatedAt: row.activated_at,
     expiresAt: row.expires_at,
+    // An unlimited pass covers any group class while it is valid.
+    unlimited: row.unlimited,
+    // 'first-booking': the validity starts when the first credit is used, so
+    // expiresAt stays empty until then.
+    startsOn: row.starts_on,
     credits,
   }
 }
@@ -47,13 +53,15 @@ export async function create(pool, email, pkg, referenceId, receipt) {
   const result = await pool.query(
     `INSERT INTO user_packages
        (user_email, package_id, name, price, reformer_credits, mat_credits, group_credits,
-        private_credits, clinical_credits, expiry_days, reference_id, receipt)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        any_credits, private_credits, duo_credits, trio_credits, clinical_credits,
+        unlimited, starts_on, expiry_days, reference_id, receipt)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
      RETURNING id`,
     [
-      email, pkg.id, pkg.subtitle ? `${pkg.subtitle}: ${pkg.title}` : pkg.title, formatPeso(pkg.price),
+      email, pkg.id, pkg.subtitle ? `${pkg.subtitle.replace(/ Packages$/, '')}: ${pkg.title}` : pkg.title, formatPeso(pkg.price),
       pkg.credits.reformer ?? 0, pkg.credits.mat ?? 0, pkg.credits.group ?? 0,
-      pkg.credits.private ?? 0, pkg.credits.clinical ?? 0, pkg.expiryDays, referenceId,
+      pkg.credits.any ?? 0, pkg.credits.private ?? 0, pkg.credits.duo ?? 0, pkg.credits.trio ?? 0, pkg.credits.clinical ?? 0,
+      Boolean(pkg.unlimited), pkg.startsOn, pkg.expiryDays, referenceId,
       receipt ?? null,
     ]
   )
@@ -89,7 +97,7 @@ export async function setStatus(pool, id, status) {
     `UPDATE user_packages SET
        status = $2,
        activated_at = CASE WHEN $2 = 'active' THEN now() ELSE activated_at END,
-       expires_at = CASE WHEN $2 = 'active' THEN now() + make_interval(days => expiry_days) ELSE expires_at END
+       expires_at = CASE WHEN $2 = 'active' AND starts_on = 'purchase' THEN now() + make_interval(days => expiry_days) ELSE expires_at END
      WHERE id = $1 AND status = 'pending'
      RETURNING id`,
     [id, status]
@@ -100,13 +108,13 @@ export async function setStatus(pool, id, status) {
 // Books a spot paid with one credit, inside a transaction that locks the
 // purchase, so two bookings at once cannot spend the same last credit.
 // Returns { booking } or { problem }.
-export async function bookWithCredit(pool, { purchaseId, email, classId, spot, clientName, creditTypes, isPrivate = false }) {
+export async function bookWithCredit(pool, { purchaseId, email, classId, spot, clientName, creditTypes, isPrivate = false, privateKind = null }) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
     const purchase = await client.query(
       `SELECT * FROM user_packages
-       WHERE id = $1 AND user_email = $2 AND status = 'active' AND expires_at > now()
+       WHERE id = $1 AND user_email = $2 AND status = 'active' AND (expires_at IS NULL OR expires_at > now())
        FOR UPDATE`,
       [purchaseId, email]
     )
@@ -117,6 +125,13 @@ export async function bookWithCredit(pool, { purchaseId, email, classId, spot, c
 
     let creditType = null
     for (const type of creditTypes) {
+      if (type === 'unlimited') {
+        if (purchase.rows[0].unlimited) {
+          creditType = 'unlimited'
+          break
+        }
+        continue
+      }
       const used = await client.query(
         `SELECT count(*)::int AS n FROM bookings
          WHERE user_package_id = $1 AND credit_type = $2 AND status NOT IN ('rejected', 'cancelled')`,
@@ -132,14 +147,21 @@ export async function bookWithCredit(pool, { purchaseId, email, classId, spot, c
       return { problem: 'no-credit' }
     }
 
+    // A package that starts at the first booking starts now.
+    await client.query(
+      `UPDATE user_packages SET expires_at = now() + make_interval(days => expiry_days)
+       WHERE id = $1 AND expires_at IS NULL`,
+      [purchaseId]
+    )
+
     const inserted = await client.query(
       `INSERT INTO bookings
-         (class_id, client_name, client_email, spot, reference_id, amount, status, user_package_id, credit_type, is_private)
-       SELECT c.id, $2, $3, $4, $5, '1 credit', 'confirmed', $6, $7, $8
+         (class_id, client_name, client_email, spot, reference_id, amount, status, user_package_id, credit_type, is_private, private_kind)
+       SELECT c.id, $2, $3, $4, $5, '1 credit', 'confirmed', $6, $7, $8, $9
        FROM classes c
        WHERE ${BOOKABLE('$4', '$8::boolean')}
        RETURNING id`,
-      [classId, clientName, email, spot, `Package #${purchaseId}`, purchaseId, creditType, isPrivate]
+      [classId, clientName, email, spot, `Package #${purchaseId}`, purchaseId, creditType, isPrivate, isPrivate ? (privateKind ?? 'solo') : null]
     )
     if (inserted.rowCount === 0) {
       await client.query('ROLLBACK')

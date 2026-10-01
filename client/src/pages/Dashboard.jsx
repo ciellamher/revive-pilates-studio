@@ -7,7 +7,7 @@ import ContactFAQSection from '../components/organisms/ContactFAQSection';
 import Footer from '../components/organisms/Footer';
 import { useAuth } from '../contexts/AuthContext';
 import { apiFetch, readSession } from '../api/base';
-import { creditLabel } from '../api/packages';
+import { creditLabel, expiryLabel } from '../api/packages';
 import { useNotify } from '../components/Notifications';
 
 const MENU_ITEMS = [
@@ -407,11 +407,19 @@ export default function Dashboard() {
                     </div>
                     <p className="text-sm text-brand-dark/60 mb-4">
                       {p.status === 'pending' && `Bought ${formatDate(String(p.purchasedAt), { day: 'numeric', month: 'short', year: 'numeric' })}. The studio is checking your payment.`}
-                      {p.status === 'active' && `Valid until ${formatDate(String(p.expiresAt), { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                      {p.status === 'active' && (p.expiresAt
+                        ? `Valid until ${formatDate(String(p.expiresAt), { day: 'numeric', month: 'short', year: 'numeric' })}`
+                        : `Ready to use. Valid for ${expiryLabel(p.expiryDays)} from your first booking.`)}
                       {p.status === 'expired' && `Expired ${formatDate(String(p.expiresAt), { day: 'numeric', month: 'short', year: 'numeric' })}`}
                       {p.status === 'rejected' && 'The studio could not match this payment. Please message them.'}
                     </p>
                     <ul className="space-y-2 mt-auto">
+                      {p.unlimited && (
+                        <li className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-brand-dark/80">{creditLabel('unlimited')}</span>
+                          <span className="font-bold text-brand-dark">Unlimited</span>
+                        </li>
+                      )}
                       {Object.entries(p.credits).map(([type, credit]) => (
                         <li key={type} className="flex items-center justify-between gap-3 text-sm">
                           <span className="text-brand-dark/80">{creditLabel(type)}</span>
@@ -419,8 +427,8 @@ export default function Dashboard() {
                         </li>
                       ))}
                     </ul>
-                    {p.status === 'active' && (p.credits.private || p.credits.clinical) && (
-                      <p className="text-xs text-brand-dark/50 mt-4">Private and clinical sessions are booked with the studio directly.</p>
+                    {p.status === 'active' && p.credits.clinical && (
+                      <p className="text-xs text-brand-dark/50 mt-4">Clinical sessions are booked with the studio directly.</p>
                     )}
                   </div>
                 );

@@ -170,3 +170,16 @@ CREATE TABLE IF NOT EXISTS rate_limit_events (
 );
 
 CREATE INDEX IF NOT EXISTS rate_limit_events_key_idx ON rate_limit_events (key, created_at);
+
+-- Package changes (October 2026 price list): more credit kinds, the
+-- Unlimited Class Pass, and validity that can start at the first booking
+-- instead of at purchase. expires_at stays NULL until then.
+ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS any_credits  INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS duo_credits  INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS trio_credits INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS unlimited    BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS starts_on    TEXT    NOT NULL DEFAULT 'purchase';
+
+-- Which kind of private booking it is ('solo', 'duo', 'trio'), so it can be
+-- named properly, e.g. "Reformer Flow (Duo)".
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS private_kind TEXT;

@@ -2,8 +2,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
 import { API_BASE } from '../../api/base';
-import { checkoutClassState, checkoutPrivateState, canBookPrivately, showsAsPrivate, privateFilterState } from '../../api/checkoutState';
-import { CLASS_TYPES, isPrivateType } from '../../api/classTypes';
+import { checkoutClassState, checkoutPrivateState, canBookPrivately, matchesPrivateFilter, privateFilterState } from '../../api/checkoutState';
+import { GROUP_CLASS_TYPES, isPrivateType } from '../../api/classTypes';
 import { labelToMinutes } from '../../api/time';
 
 const getWeekDays = (weeksOffset = 0) => {
@@ -32,19 +32,20 @@ const getWeekDays = (weeksOffset = 0) => {
   return days;
 };
 
-// Filter choices. 'Private Sessions' shows Reformer classes nobody has booked
-// yet, which can be taken as a private session.
-const CLASS_TYPE_OPTIONS = ['Classes', ...CLASS_TYPES];
+// Class filter choices. The private ones show sessions of that kind plus
+// empty Reformer classes that can be booked as one. Trio appears only when a
+// trio session is on the schedule.
+const BASE_CLASS_OPTIONS = ['Classes', ...GROUP_CLASS_TYPES, 'Private Session', 'Duo Private'];
 
-export default function BookYourSpotSchedule({ globalLocation = 'Location', setGlobalLocation = () => {}, initialCategory = 'All categories' }) {
+export default function BookYourSpotSchedule({ globalLocation = 'Location', setGlobalLocation = () => {}, initialClassType = 'Classes' }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const currentWeekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
   const [selectedDayId, setSelectedDayId] = useState(() => new Date().toDateString());
 
   // Filter states
-  const [classType, setClassType] = useState('Classes');
+  const [classType, setClassType] = useState(initialClassType);
   const [instructor, setInstructor] = useState('Instructor');
-  const [category, setCategory] = useState(initialCategory);
+  const privateFilter = isPrivateType(classType);
   
   // Use globalLocation as the local state equivalent
   const location = globalLocation;
@@ -86,16 +87,16 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
         if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return false;
         // Cancelled classes are not shown to clients.
         if (cls.isCancelled) return false;
-        if (classType !== 'Classes' && cls.title !== classType) return false;
-        if (category === 'Private Sessions' && !showsAsPrivate(cls)) return false;
-        if (category === 'Group Classes' && isPrivateType(cls.title)) return false;
+        if (classType !== 'Classes') {
+          if (privateFilter ? !matchesPrivateFilter(cls, classType) : cls.title !== classType) return false;
+        }
         if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
         return true;
       }).sort((a, b) => (labelToMinutes(a.time) ?? 0) - (labelToMinutes(b.time) ?? 0)).map(cls => ({
         ...cls,
         location: cls.branch,
         spots: `${Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0))} / ${cls.capacity} left`,
-        status: cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : category === 'Private Sessions' && !isPrivateType(cls.title) ? 'Book Private' : 'Book Now'
+        status: cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : privateFilter && cls.title !== classType ? `Book as ${classType}` : 'Book Now'
       }));
       data.push({
         dayId: d.id,
@@ -105,7 +106,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
       });
     });
     return data;
-  }, [currentWeekDays, classes, location, classType, instructor, category]);
+  }, [currentWeekDays, classes, location, classType, instructor, privateFilter]);
 
   const [coaches, setCoaches] = useState([]);
 
@@ -185,14 +186,6 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
           <div className="relative z-30 w-full border border-brand-dark/30 rounded-[24px] flex flex-col md:flex-row mb-12 bg-[#F5F2ED]">
             <div className="flex-1 relative border-b md:border-b-0 md:border-r border-brand-dark/30">
               <CustomDropdown
-                value={category}
-                onChange={setCategory}
-                options={['All categories', 'Group Classes', 'Private Sessions']}
-                placeholder="All categories"
-              />
-            </div>
-            <div className="flex-1 relative border-b md:border-b-0 md:border-r border-brand-dark/30">
-              <CustomDropdown
                 value={location}
                 onChange={setLocation}
                 options={['Location', 'Angeles City', 'San Fernando']}
@@ -203,7 +196,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
               <CustomDropdown
                 value={classType}
                 onChange={setClassType}
-                options={CLASS_TYPE_OPTIONS}
+                options={classes.some(c => c.title === 'Trio Private') ? [...BASE_CLASS_OPTIONS, 'Trio Private'] : BASE_CLASS_OPTIONS}
                 placeholder="Classes"
               />
             </div>
@@ -270,7 +263,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                           ) : (
                             <Link 
                               to="/checkout"
-                              state={category === 'Private Sessions' ? privateFilterState(cls) : checkoutClassState(cls)}
+                              state={privateFilter ? privateFilterState(cls, classType) : checkoutClassState(cls)}
                               className="bg-brand-sand text-brand-dark px-8 py-3 rounded-full text-sm font-bold hover:bg-white transition-colors w-full shadow-sm text-center block"
                             >
                               {cls.status}
@@ -278,7 +271,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                           )}
                           
                           {(() => {
-                            if (category !== 'Private Sessions' && canBookPrivately(cls)) {
+                            if (!privateFilter && canBookPrivately(cls)) {
                               return (
                                 <Link 
                                   to="/checkout"

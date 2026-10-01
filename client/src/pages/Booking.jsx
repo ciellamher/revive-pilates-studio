@@ -7,9 +7,9 @@ import Footer from '../components/organisms/Footer';
 
 export default function Booking() {
   const [view, setView] = useState('list'); // 'list' | 'calendar'
-  // /book?category=private opens straight onto classes that can be booked privately.
+  // /book?category=private opens straight onto private sessions.
   const [searchParams] = useSearchParams();
-  const initialCategory = searchParams.get('category') === 'private' ? 'Private Sessions' : 'All categories';
+  const initialClassType = searchParams.get('category') === 'private' ? 'Private Session' : 'Classes';
   const [location, setLocation] = useState('Location');
 
   // Dynamic theme colors
@@ -63,9 +63,9 @@ export default function Booking() {
         </div>
 
         {view === 'list' ? (
-          <BookYourSpotSchedule globalLocation={location} setGlobalLocation={setLocation} initialCategory={initialCategory} />
+          <BookYourSpotSchedule globalLocation={location} setGlobalLocation={setLocation} initialClassType={initialClassType} />
         ) : (
-          <ClassScheduleGrid hideTitle={true} globalLocation={location} setGlobalLocation={setLocation} initialCategory={initialCategory} />
+          <ClassScheduleGrid hideTitle={true} globalLocation={location} setGlobalLocation={setLocation} initialClassType={initialClassType} />
         )}
       </main>
 

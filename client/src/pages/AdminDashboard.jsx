@@ -9,7 +9,7 @@ import AdminClientProfile from '../components/organisms/AdminClientProfile';
 import AdminClassRoster from '../components/organisms/AdminClassRoster';
 import { apiFetch } from '../api/base';
 import { useNotify } from '../components/Notifications';
-import { CLASS_TYPES, DEFAULT_CAPACITY } from '../api/classTypes';
+import { GROUP_CLASS_TYPES, PRIVATE_KINDS, DEFAULT_CAPACITY, isPrivateType, privateKindOf, privateKind } from '../api/classTypes';
 import { DAY_START, DAY_END, hourLabels, labelToMinutes, minutesToLabel, parseTimeInput, durationOf } from '../api/time';
 
 // A time box: type any time, or pick a whole hour from the suggestions.
@@ -79,6 +79,10 @@ export default function AdminDashboard() {
   const [editingClass, setEditingClass] = useState(null);
   const [prefilledClassData, setPrefilledClassData] = useState(null);
   const [classTypeTitle, setClassTypeTitle] = useState('Reformer Flow');
+  // A class is a group class unless "Private session" is ticked; then it is
+  // booked whole by one client, for one, two or three people.
+  const [isPrivateClass, setIsPrivateClass] = useState(false);
+  const [privateKindKey, setPrivateKindKey] = useState('solo');
   const [experienceLevel, setExperienceLevel] = useState('Beginner');
   const [modalStartTime, setModalStartTime] = useState('08:00 AM');
   const [modalEndTime, setModalEndTime] = useState('09:00 AM');
@@ -514,6 +518,7 @@ export default function AdminDashboard() {
                 setEditingClass(null);
                 setPrefilledClassData(null);
                 setClassTypeTitle('Reformer Flow');
+                setIsPrivateClass(false);
                 setCapacity(DEFAULT_CAPACITY['Reformer Flow']);
                 setCoachId(branchCoaches[0]?.id ?? '');
                 setClassFormError('');
@@ -538,7 +543,9 @@ export default function AdminDashboard() {
             onClassClick={(cls) => {
               setEditingClass(cls);
               setPrefilledClassData(null);
-              setClassTypeTitle(cls.title || 'Reformer Flow');
+              setIsPrivateClass(isPrivateType(cls.title));
+              setPrivateKindKey(privateKindOf(cls.title) ?? 'solo');
+              setClassTypeTitle(isPrivateType(cls.title) ? 'Reformer Flow' : (cls.title || 'Reformer Flow'));
               setCapacity(cls.capacity ?? DEFAULT_CAPACITY[cls.title] ?? DEFAULT_CAPACITY['Reformer Flow']);
               setCoachId(cls.coachId);
               setClassFormError('');
@@ -550,6 +557,7 @@ export default function AdminDashboard() {
             onEmptySlotClick={(dateId, time) => {
               setEditingClass(null);
               setClassTypeTitle('Reformer Flow');
+              setIsPrivateClass(false);
               setCapacity(DEFAULT_CAPACITY['Reformer Flow']);
               setCoachId(branchCoaches[0]?.id ?? '');
               setClassFormError('');
@@ -880,7 +888,7 @@ export default function AdminDashboard() {
               const localDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
               
               const newClass = {
-                title: classTypeTitle,
+                title: isPrivateClass ? privateKind(privateKindKey).title : classTypeTitle,
                 time: timeStr,
                 date: formData.get('date'),
                 dateId: localDate.toDateString(),
@@ -927,17 +935,49 @@ export default function AdminDashboard() {
               <div className="space-y-5">
                   <div>
                     <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Class Name</label>
-                    <div className="bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-40 relative">
+                    <div className={`bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-40 relative ${isPrivateClass ? 'opacity-50 pointer-events-none' : ''}`}>
                       <CustomDropdown
                         value={classTypeTitle}
                         onChange={(title) => {
                           setClassTypeTitle(title);
                           setCapacity(DEFAULT_CAPACITY[title] ?? 1);
                         }}
-                        options={CLASS_TYPES}
+                        options={GROUP_CLASS_TYPES}
                         triggerClassName="px-4 py-3"
                       />
                     </div>
+
+                    <label className="mt-3 flex items-center gap-2 text-sm font-medium text-brand-dark cursor-pointer w-fit">
+                      <input
+                        type="checkbox"
+                        checked={isPrivateClass}
+                        onChange={(e) => {
+                          setIsPrivateClass(e.target.checked);
+                          setCapacity(e.target.checked ? privateKind(privateKindKey).capacity : (DEFAULT_CAPACITY[classTypeTitle] ?? 1));
+                        }}
+                        className="w-4 h-4 accent-[#3A2A20]"
+                      />
+                      Private session
+                    </label>
+                    {isPrivateClass && (
+                      <div className="mt-2">
+                        <div role="radiogroup" aria-label="Private session size" className="flex flex-wrap gap-2">
+                          {PRIVATE_KINDS.map(kind => (
+                            <button
+                              key={kind.key}
+                              type="button"
+                              role="radio"
+                              aria-checked={privateKindKey === kind.key}
+                              onClick={() => { setPrivateKindKey(kind.key); setCapacity(kind.capacity); }}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${privateKindKey === kind.key ? 'bg-brand-dark text-white border-brand-dark' : 'border-brand-sand text-brand-dark hover:bg-black/5'}`}
+                            >
+                              {kind.label}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-xs text-brand-dark/50">Shown to clients as "{privateKind(privateKindKey).title}" and booked whole by one client.</p>
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     <div className="col-span-2 sm:col-span-1">

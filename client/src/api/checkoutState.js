@@ -1,8 +1,10 @@
-import { isPrivateType } from './classTypes'
+import { isPrivateType, privateKindOf, privateKind } from './classTypes'
 
 // What the schedule hands to /checkout about the class being booked.
+// Private, duo and trio classes are booked whole, so there is no spot to pick.
 export function checkoutClassState(cls) {
   const takenSpots = cls.takenSpots ?? []
+  const isPrivate = isPrivateType(cls.title)
   return {
     classId: cls.id,
     title: cls.title,
@@ -13,23 +15,40 @@ export function checkoutClassState(cls) {
     branch: cls.branch,
     capacity: cls.capacity,
     takenSpots,
+    isPrivate,
+    privateKind: isPrivate ? privateKindOf(cls.title) : null,
     isWaitlist: cls.isFull,
     slotsLeft: Math.max(0, cls.capacity - takenSpots.length),
   }
 }
 
-// The same class booked as a private session: the whole room for one client.
-export function checkoutPrivateState(cls) {
-  return { ...checkoutClassState(cls), title: 'Private Class', isPrivate: true, isWaitlist: false, slotsLeft: 1 }
+// An empty group Reformer class taken whole as a private, duo or trio session.
+export function checkoutPrivateState(cls, kind = 'solo') {
+  return {
+    ...checkoutClassState(cls),
+    title: privateKind(kind).title,
+    isPrivate: true,
+    privateKind: kind,
+    isWaitlist: false,
+    slotsLeft: 1,
+  }
 }
 
-// A Reformer class nobody has booked yet can be taken as a private session.
-export const canBookPrivately = (cls) =>
-  !cls.isCancelled && !cls.isDone && (cls.takenSpots?.length ?? 0) === 0 && cls.title.toLowerCase().includes('reformer')
+// An empty Reformer class with room for the group can be taken as that kind
+// of private session.
+export const canBookPrivately = (cls, kind = 'solo') =>
+  !cls.isCancelled && !cls.isDone && (cls.takenSpots?.length ?? 0) === 0 &&
+  cls.title.toLowerCase().includes('reformer') && cls.capacity >= privateKind(kind).capacity
 
-// What the schedule's 'Private Sessions' filter shows: classes that are
-// private by type, and group Reformer classes that can be taken privately.
-export const showsAsPrivate = (cls) => (isPrivateType(cls.title) && !cls.isCancelled && !cls.isDone) || canBookPrivately(cls)
+// The class filter's private choices ('Private Session', 'Duo Private',
+// 'Trio Private') show sessions of that kind plus Reformer classes that can
+// be taken as one.
+export function matchesPrivateFilter(cls, filterTitle) {
+  const kind = privateKindOf(filterTitle)
+  if (cls.title === filterTitle) return true
+  return canBookPrivately(cls, kind)
+}
 
-// The link for a class under that filter.
-export const privateFilterState = (cls) => (isPrivateType(cls.title) ? checkoutClassState(cls) : checkoutPrivateState(cls))
+// The link for a class shown under a private filter.
+export const privateFilterState = (cls, filterTitle) =>
+  (cls.title === filterTitle ? checkoutClassState(cls) : checkoutPrivateState(cls, privateKindOf(filterTitle)))

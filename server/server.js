@@ -350,6 +350,19 @@ app.get('/api/bookings', requireAdmin, async (req, res, next) => {
   }
 });
 
+// Whether a booking takes the whole class. Private, duo and trio classes are
+// always booked whole; a group Reformer class can be taken whole as a private,
+// duo or trio session when the client asks (body.private and body.privateKind).
+const PRIVATE_KINDS = ['solo', 'duo', 'trio'];
+function privateBookingOf(body, cls) {
+  const t = cls.title.toLowerCase();
+  if (t.includes('duo')) return { isPrivate: true, privateKind: 'duo' };
+  if (t.includes('trio')) return { isPrivate: true, privateKind: 'trio' };
+  if (t.includes('private') || t.includes('clinical')) return { isPrivate: true, privateKind: 'solo' };
+  if (body.private === true) return { isPrivate: true, privateKind: PRIVATE_KINDS.includes(body.privateKind) ? body.privateKind : 'solo' };
+  return { isPrivate: false, privateKind: null };
+}
+
 // Booking with a package credit: the client must be signed in, the spot is
 // confirmed straight away (the package was paid for already) and one credit of
 // the right type is used.
@@ -360,12 +373,11 @@ async function bookWithPackage(req, res, body) {
   const classId = Number(body.classId);
   if (!Number.isInteger(purchaseId) || purchaseId < 1) return res.status(400).json({ error: 'Please choose a package' });
   if (!Number.isInteger(classId) || classId < 1) return res.status(400).json({ error: 'classId is required' });
-  const isPrivate = body.private === true;
-  if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) return res.status(400).json({ error: 'Please select a spot' });
-
   const cls = await classesRepo.getById(pool, classId);
   if (!cls) return res.status(409).json({ error: 'This class can no longer be booked.' });
-  const creditTypes = isPrivate ? ['private'] : creditTypesForClass(cls.title);
+  const { isPrivate, privateKind } = privateBookingOf(body, cls);
+  if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) return res.status(400).json({ error: 'Please select a spot' });
+  const creditTypes = creditTypesForClass(cls.title, privateKind);
   if (creditTypes.length === 0) return res.status(400).json({ error: 'This class cannot be booked with a package online.' });
 
   const profile = await usersRepo.upsert(pool, { email: session.email, name: body.clientName });
@@ -373,7 +385,7 @@ async function bookWithPackage(req, res, body) {
 
   const { bookingId, problem } = await packagesRepo.bookWithCredit(pool, {
     purchaseId, email: session.email, classId, spot: isPrivate ? 1 : body.spot, clientName: clientName.slice(0, 100),
-    creditTypes, isPrivate,
+    creditTypes, isPrivate, privateKind,
   });
   if (problem === 'no-package') return res.status(409).json({ error: 'That package is not active, or has expired.' });
   if (problem === 'no-credit') return res.status(409).json({ error: 'That package has no credits left for this class.' });
@@ -415,7 +427,8 @@ app.post('/api/bookings', requireUser, async (req, res, next) => {
       return res.status(400).json({ error: 'Please enter a valid email address' });
     }
     // A private session takes the whole room, so there is no spot to choose.
-    const isPrivate = body.private === true;
+    const cls = Number.isInteger(classId) && classId > 0 ? await classesRepo.getById(pool, classId) : null;
+    const { isPrivate, privateKind } = cls ? privateBookingOf(body, cls) : { isPrivate: body.private === true, privateKind: 'solo' };
     if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) {
       return res.status(400).json({ error: 'Please select a spot' });
     }
@@ -427,7 +440,7 @@ app.post('/api/bookings', requireUser, async (req, res, next) => {
 
     const { booking, problem } = await bookingsRepo.create(pool, {
       classId, clientName, clientEmail, spot: isPrivate ? 1 : body.spot, referenceId, amount,
-      isPrivate, receipt: receipt.image,
+      isPrivate, privateKind, receipt: receipt.image,
     });
     if (problem === 'spot-taken') {
       return res.status(409).json({ error: 'That spot was just taken. Please choose another one.' });
