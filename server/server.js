@@ -8,6 +8,7 @@ import * as coachesRepo from './coachesRepo.js';
 import * as usersRepo from './usersRepo.js';
 import * as packagesRepo from './packagesRepo.js';
 import * as settingsRepo from './settingsRepo.js';
+import { allow, clientIp } from './rateLimit.js';
 import { PACKAGES, findPackage, creditTypesForClass } from './packagesCatalog.js';
 import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, MAIL_MODE } from './mailer.js';
 
@@ -19,6 +20,29 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .filter(Boolean);
 
 app.use(cors({ origin: allowedOrigins }));
+app.disable('x-powered-by');
+
+// Security headers on every response. The API only returns JSON, so it can be
+// strict: nothing may frame it, sniff its type or cache personal data.
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  });
+  // Anything sent with a session or secret is someone's own data.
+  if (req.headers.authorization) res.set('Cache-Control', 'no-store');
+  next();
+});
+
+// Refuses with 429 when `key` has been used `limit` times in `minutes`.
+async function rateLimited(res, key, limit, minutes) {
+  if (await allow(pool, key, limit, minutes)) return false;
+  res.status(429).json({ error: 'Too many requests. Please wait a few minutes and try again.' });
+  return true;
+}
 // Most requests are tiny. The few that can carry an image (a payment receipt,
 // or the studio's QR codes) get a larger allowance; images are shrunk in the
 // browser before they are sent.
@@ -354,13 +378,17 @@ async function bookWithPackage(req, res, body) {
   res.status(201).json(booking);
 }
 
-app.post('/api/bookings', async (req, res, next) => {
+// Booking needs an account: the booking, and every email about it, go to the
+// signed-in email address, so nobody can book (or send emails) in someone
+// else's name.
+app.post('/api/bookings', requireUser, async (req, res, next) => {
   try {
     const body = req.body ?? {};
+    if (await rateLimited(res, `booking:${req.userEmail}`, 20, 60)) return;
     if (body.packageId !== undefined) return await bookWithPackage(req, res, body);
     const classId = Number(body.classId);
     const clientName = typeof body.clientName === 'string' ? body.clientName.trim() : '';
-    const clientEmail = typeof body.clientEmail === 'string' ? body.clientEmail.trim().toLowerCase() : '';
+    const clientEmail = req.userEmail;
     const referenceId = typeof body.referenceId === 'string' ? body.referenceId.trim() : '';
     const amount = typeof body.amount === 'string' ? body.amount.trim() : '';
 
@@ -486,6 +514,16 @@ app.post('/api/auth/login', async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 100) : '';
   if (!EMAIL.test(email) || email.length > 254) {
     return res.status(400).json({ error: 'Please enter a valid email address' });
+  }
+
+  // Limits per address and per caller, so nobody can flood someone's inbox or
+  // use up the studio's daily Gmail allowance.
+  try {
+    if (await rateLimited(res, `login-email:${email}`, 5, 15)) return;
+    if (await rateLimited(res, `login-ip:${clientIp(req)}`, 20, 60)) return;
+  } catch (error) {
+    console.error('Rate limit check failed:', error);
+    return res.status(500).json({ error: 'Something went wrong on the server' });
   }
 
   const token = signToken({ email, name, purpose: 'login' }, '15m');
@@ -640,6 +678,7 @@ app.get('/api/me/packages', requireUser, async (req, res, next) => {
 
 app.post('/api/me/packages', requireUser, async (req, res, next) => {
   try {
+    if (await rateLimited(res, `purchase:${req.userEmail}`, 10, 60)) return;
     const pkg = findPackage(req.body?.packageId);
     if (!pkg) return res.status(400).json({ error: 'That package does not exist' });
     const referenceId = typeof req.body?.referenceId === 'string' ? req.body.referenceId.trim() : '';
@@ -752,6 +791,7 @@ app.put('/api/settings/payment', requireAdmin, async (req, res, next) => {
 // Newsletter sign-up from the home page.
 app.post('/api/newsletter', async (req, res, next) => {
   try {
+    if (await rateLimited(res, `newsletter:${clientIp(req)}`, 10, 60)) return;
     const firstName = typeof req.body?.firstName === 'string' ? req.body.firstName.trim() : '';
     const lastName = typeof req.body?.lastName === 'string' ? req.body.lastName.trim() : '';
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';

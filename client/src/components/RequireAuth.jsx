@@ -13,7 +13,18 @@ export default function RequireAuth({ admin = false, children }) {
   // it animates, which would otherwise redirect in an endless loop.
   const redirectState = useMemo(() => ({ from }), [from]);
 
-  if (!user) return <Navigate to="/login" replace state={redirectState} />;
+  if (!user) {
+    // Opening a class while signed out: remember which class, so checkout
+    // can pick it up again once the visitor is back from the sign-in link.
+    if (location.pathname === '/checkout' && location.state?.classId) {
+      try {
+        localStorage.setItem('revive:checkout', JSON.stringify(location.state));
+      } catch {
+        // Without storage they will pick the class again after signing in.
+      }
+    }
+    return <Navigate to="/login" replace state={redirectState} />;
+  }
   if (admin && !user.isAdmin) return <Navigate to="/dashboard" replace />;
   return children;
 }

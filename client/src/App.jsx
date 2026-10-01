@@ -21,7 +21,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/book" element={<Booking />} />
-          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
           {/* Sign-up is the same emailed link as sign-in, so old /register links go there. */}
           <Route path="/register" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />

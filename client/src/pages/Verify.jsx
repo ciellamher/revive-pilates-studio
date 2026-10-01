@@ -8,9 +8,20 @@ export default function Verify() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [status, setStatus] = useState('Verifying your login link...');
+  // Read the one-time token once, then take it out of the address bar and
+  // history so it is not left behind in the browser or shared by accident.
+  const [token] = useState(() => searchParams.get('token'));
+  // Where to go afterwards, read once for the same reason.
+  const [returnTo] = useState(() => {
+    try {
+      return localStorage.getItem('revive:returnTo');
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
-    const token = searchParams.get('token');
+    if (token) window.history.replaceState(window.history.state, '', window.location.pathname);
     if (!token) {
       setStatus('Invalid link. No token found.');
       return;
@@ -34,12 +45,10 @@ export default function Verify() {
       setStatus('Success! Redirecting...');
       
       setTimeout(() => {
-        let returnTo = null;
         try {
-          returnTo = localStorage.getItem('revive:returnTo');
           localStorage.removeItem('revive:returnTo');
         } catch {
-          // No storage: use the default page below.
+          // No storage: nothing to clear.
         }
         // Only same-site paths, never a full address someone slipped in.
         if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
@@ -55,7 +64,7 @@ export default function Verify() {
       console.error(err);
       setStatus('An error occurred during verification.');
     });
-  }, [searchParams, navigate, login]);
+  }, [token, returnTo, navigate, login]);
 
   return (
     <div className="min-h-screen bg-[#F5F2ED] flex flex-col items-center justify-center p-4">

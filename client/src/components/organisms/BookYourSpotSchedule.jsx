@@ -2,7 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
 import { API_BASE } from '../../api/base';
-import { checkoutClassState, checkoutPrivateState, canBookPrivately } from '../../api/checkoutState';
+import { checkoutClassState, checkoutPrivateState, canBookPrivately, showsAsPrivate, privateFilterState } from '../../api/checkoutState';
+import { CLASS_TYPES, isPrivateType } from '../../api/classTypes';
+import { labelToMinutes } from '../../api/time';
 
 const getWeekDays = (weeksOffset = 0) => {
   const days = [];
@@ -32,7 +34,7 @@ const getWeekDays = (weeksOffset = 0) => {
 
 // Filter choices. 'Private Sessions' shows Reformer classes nobody has booked
 // yet, which can be taken as a private session.
-const CLASS_TYPE_OPTIONS = ['Classes', 'Reformer Flow', 'Mat Pilates', 'Barre'];
+const CLASS_TYPE_OPTIONS = ['Classes', ...CLASS_TYPES];
 
 export default function BookYourSpotSchedule({ globalLocation = 'Location', setGlobalLocation = () => {}, initialCategory = 'All categories' }) {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -82,15 +84,18 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
       const dayClasses = classes.filter(cls => {
         if (cls.dateId !== d.id) return false;
         if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return false;
+        // Cancelled classes are not shown to clients.
+        if (cls.isCancelled) return false;
         if (classType !== 'Classes' && cls.title !== classType) return false;
-        if (category === 'Private Sessions' && !canBookPrivately(cls)) return false;
+        if (category === 'Private Sessions' && !showsAsPrivate(cls)) return false;
+        if (category === 'Group Classes' && isPrivateType(cls.title)) return false;
         if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
         return true;
-      }).map(cls => ({
+      }).sort((a, b) => (labelToMinutes(a.time) ?? 0) - (labelToMinutes(b.time) ?? 0)).map(cls => ({
         ...cls,
         location: cls.branch,
         spots: `${Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0))} / ${cls.capacity} left`,
-        status: cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : category === 'Private Sessions' ? 'Book Private' : 'Book Now'
+        status: cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : category === 'Private Sessions' && !isPrivateType(cls.title) ? 'Book Private' : 'Book Now'
       }));
       data.push({
         dayId: d.id,
@@ -265,7 +270,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                           ) : (
                             <Link 
                               to="/checkout"
-                              state={category === 'Private Sessions' ? checkoutPrivateState(cls) : checkoutClassState(cls)}
+                              state={category === 'Private Sessions' ? privateFilterState(cls) : checkoutClassState(cls)}
                               className="bg-brand-sand text-brand-dark px-8 py-3 rounded-full text-sm font-bold hover:bg-white transition-colors w-full shadow-sm text-center block"
                             >
                               {cls.status}

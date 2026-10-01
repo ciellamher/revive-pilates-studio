@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
 import { API_BASE, apiFetch } from '../../api/base';
 import { checkoutClassState, showsAsPrivate, privateFilterState } from '../../api/checkoutState';
-import { CLASS_TYPES, isPrivateType } from '../../api/classTypes';
+import { CLASS_TYPES, isPrivateType, priceFor } from '../../api/classTypes';
+import { useAuth } from '../../contexts/AuthContext';
 import { DAY_START, DAY_END, labelToMinutes, minutesToLabel, durationOf, shortLabel } from '../../api/time';
 
 const getWeekDays = (weeksOffset = 0) => {
@@ -134,11 +135,16 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
     }
   }, [weekOffset, currentWeekDays]);
 
+  // Cancelled classes are hidden from clients. The admin can show them, to
+  // restore one.
+  const [showCancelled, setShowCancelled] = useState(false);
+
   // A day's classes after the filters, earliest first.
   const getClassesForDateId = (dateId) => {
     return classes
       .filter(cls => {
         if (cls.dateId !== dateId) return false;
+        if (cls.isCancelled && !(isAdmin && showCancelled)) return false;
         if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return false;
         if (classType !== 'Classes' && cls.title !== classType) return false;
         if (category === 'Private Sessions' && !showsAsPrivate(cls)) return false;
@@ -201,6 +207,7 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
     if (!isAdmin || e.button > 0) return;
     e.preventDefault();
     e.stopPropagation();
+    setPreview(null);
     const start = labelToMinutes(cls.time) ?? DAY_START;
     updateDrag({
       cls, mode, startX: e.clientX, startY: e.clientY, moved: false,
@@ -283,6 +290,29 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
     onEmptySlotClick(day.id, minutesToLabel(Math.min(Math.max(minutes, DAY_START), DAY_END - 60)));
   };
 
+  // ---- Hover preview --------------------------------------------------------
+  // Hovering a class shows a card with its details next to it.
+  const { user } = useAuth();
+  const [preview, setPreview] = useState(null);
+  useEffect(() => {
+    if (!preview) return;
+    // Close when the visitor scrolls (the card would no longer sit next to
+    // its class). Wheel and touch, not 'scroll': programmatic scrolling
+    // should not close it.
+    const close = () => setPreview(null);
+    window.addEventListener('wheel', close, { passive: true, once: true });
+    window.addEventListener('touchmove', close, { passive: true, once: true });
+    return () => {
+      window.removeEventListener('wheel', close);
+      window.removeEventListener('touchmove', close);
+    };
+  }, [preview]);
+  const showPreview = (e, cls) => {
+    if (dragRef.current) return;
+    setPreview({ cls, rect: e.currentTarget.getBoundingClientRect() });
+  };
+  const hidePreview = () => setPreview(null);
+
   // A line across today at the current time.
   const [nowMinutes, setNowMinutes] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); });
   useEffect(() => {
@@ -335,12 +365,12 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
     const hover = isDarkTheme ? 'hover:bg-white/20' : 'hover:bg-white hover:border-[#3A2A20]';
     const box = `w-full h-full px-1.5 py-1 flex flex-col items-start justify-start gap-0.5 overflow-hidden rounded-lg text-left transition-colors ${surface}`;
 
-    // Full details on hover, for blocks too narrow to show them.
-    const tooltip = `${cls.title} · ${shortLabel(start)}–${shortLabel(start + duration)} · ${cls.instructor} · ${cls.branch}`;
+    // Full details on hover: see the preview card below.
+    const previewHandlers = { onMouseEnter: (e) => showPreview(e, cls), onMouseLeave: hidePreview };
 
     if (isAdmin) {
       return (
-        <div key={`${cls.id}${ghost ? '-ghost' : ''}`} title={tooltip} className={`absolute ${isDragged ? 'z-30 shadow-lg' : 'z-10'}`} style={style}>
+        <div key={`${cls.id}${ghost ? '-ghost' : ''}`} {...(isDragged ? {} : previewHandlers)} className={`absolute ${isDragged ? 'z-30 shadow-lg' : 'z-10'}`} style={style}>
           <div
             role="button"
             tabIndex={0}
@@ -366,14 +396,14 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
 
     if (isPast || isCancelled) {
       return (
-        <div key={cls.id} title={tooltip} className="absolute z-10" style={style}>
+        <div key={cls.id} {...previewHandlers} className="absolute z-10" style={style}>
           <div className={`${box} opacity-60`}>{content}</div>
         </div>
       );
     }
 
     return (
-      <div key={cls.id} title={tooltip} className="absolute z-10" style={style}>
+      <div key={cls.id} {...previewHandlers} className="absolute z-10" style={style}>
         <Link to="/checkout" state={linkState(cls)} className={`${box} ${hover} shadow-sm hover:shadow-md`}>
           {content}
         </Link>
@@ -478,6 +508,13 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
           <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between">
             {adminHeader}
           </div>
+        )}
+
+        {isAdmin && (
+          <label className="flex items-center gap-2 mb-4 text-sm font-medium text-[#3A2A20]/70 cursor-pointer w-fit">
+            <input type="checkbox" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} className="w-4 h-4 accent-[#3A2A20]" />
+            Show cancelled classes
+          </label>
         )}
 
         {dragError && <p role="alert" className="mb-4 text-sm font-medium text-[#E02424]">Could not move the class: {dragError}</p>}
@@ -587,7 +624,7 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
                     {/* Header */}
                     <div className={`border-b flex flex-col items-center justify-center ${isDarkTheme ? 'border-white/30' : 'border-[#D8CFC4]'} ${d.isPast ? 'opacity-50' : ''}`} style={{ height: HEADER_PX }}>
                       <span className={`text-xs mb-1 ${hasClasses ? 'font-bold' : ''} ${isDarkTheme ? 'text-white/60' : 'text-[#3A2A20]/60'}`}>{d.day}</span>
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${d.id === todayId ? 'bg-[#E02424] text-white' : hasClasses ? (isDarkTheme ? 'bg-white text-[#3A2A20]' : 'bg-[#3A2A20] text-[#F5F2ED]') : (isDarkTheme ? 'text-white/60' : 'text-[#3A2A20]/60')}`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${d.id === todayId ? 'bg-brand-brown text-brand-beige ring-2 ring-offset-2 ring-brand-sand' : hasClasses ? (isDarkTheme ? 'bg-white text-[#3A2A20]' : 'bg-[#3A2A20] text-[#F5F2ED]') : (isDarkTheme ? 'text-white/60' : 'text-[#3A2A20]/60')}`}>
                         {d.date}
                       </div>
                     </div>
@@ -609,8 +646,8 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
 
                       {d.id === todayId && nowMinutes >= DAY_START && nowMinutes <= DAY_END && (
                         <div className="absolute left-0 right-0 z-20 pointer-events-none flex items-center" style={{ top: toPx(nowMinutes) }}>
-                          <div className="w-2 h-2 rounded-full bg-[#E02424] -ml-1" />
-                          <div className="flex-1 h-px bg-[#E02424]" />
+                          <div className="w-2 h-2 rounded-full bg-brand-brown -ml-1" />
+                          <div className="flex-1 h-px bg-brand-brown" />
                         </div>
                       )}
 
@@ -628,6 +665,42 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
         </div>
 
       </div>
+
+      {preview && (() => {
+        const { cls, rect } = preview;
+        const start = labelToMinutes(cls.time) ?? DAY_START;
+        const end = start + durationOf(cls);
+        const coach = coaches.find(c => c.id === cls.coachId || c.name === cls.instructor);
+        const spotsLeft = Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0));
+        const [y, m, dd] = (cls.date ?? '').split('-').map(Number);
+        const dateText = cls.date ? new Date(y, m - 1, dd).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : cls.dateId;
+        const status = cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : null;
+        const width = 272;
+        const left = rect.right + 8 + width < window.innerWidth ? rect.right + 8 : Math.max(8, rect.left - width - 8);
+        const top = Math.min(Math.max(8, rect.top), window.innerHeight - 240);
+        const hint = isAdmin ? 'Drag to move · click to edit'
+          : status ? null
+          : user ? 'Click to book this class' : 'Click to sign in and book';
+        return (
+          <div role="tooltip" className="fixed z-[60] pointer-events-none animate-fade-in" style={{ left, top, width }}>
+            <div className="bg-white text-[#3A2A20] rounded-2xl shadow-xl border border-[#E8E2D9] p-4">
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <p className={`font-bold text-base leading-tight ${cls.isCancelled ? 'line-through' : ''}`}>{cls.title}</p>
+                {status && <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${cls.isCancelled ? 'text-[#E02424] bg-[#E02424]/10' : 'text-[#3A2A20]/60 bg-black/5'}`}>{status}</span>}
+              </div>
+              <p className="text-xs text-[#3A2A20]/60 mb-3">{dateText}</p>
+              <dl className="space-y-1.5 text-sm">
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Time</dt><dd>{shortLabel(start)} – {shortLabel(end)} <span className="text-[#3A2A20]/50">({end - start} min)</span></dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Coach</dt><dd>{cls.instructor}{coach?.specialty ? <span className="block text-xs text-[#3A2A20]/50">{coach.specialty}</span> : null}</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Branch</dt><dd>{cls.branch}</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Spots</dt><dd>{spotsLeft} of {cls.capacity} left</dd></div>
+                <div className="flex gap-2"><dt className="w-16 shrink-0 text-[#3A2A20]/50">Price</dt><dd>₱{priceFor(cls.title).toLocaleString('en-US')} per person</dd></div>
+              </dl>
+              {hint && <p className="mt-3 pt-3 border-t border-[#E8E2D9] text-xs font-bold text-brand-brown">{hint}</p>}
+            </div>
+          </div>
+        );
+      })()}
     </section>
   );
 }

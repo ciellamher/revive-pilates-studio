@@ -11,11 +11,13 @@ import { priceFor } from '../api/classTypes';
 import { useAuth } from '../contexts/AuthContext';
 import classPreviewImg from '../assets/revive-photos/reformer_11.jpg';
 
+// Kept in localStorage, not sessionStorage: a visitor who must sign in first
+// comes back through the emailed link, which opens a new tab.
 const CHECKOUT_KEY = 'revive:checkout';
 
 function readStoredCheckout() {
   try {
-    return JSON.parse(sessionStorage.getItem(CHECKOUT_KEY));
+    return JSON.parse(localStorage.getItem(CHECKOUT_KEY));
   } catch {
     return null;
   }
@@ -31,7 +33,7 @@ export default function Checkout() {
   useEffect(() => {
     if (!location.state?.classId) return;
     try {
-      sessionStorage.setItem(CHECKOUT_KEY, JSON.stringify(location.state));
+      localStorage.setItem(CHECKOUT_KEY, JSON.stringify(location.state));
     } catch {
       // No storage: a refresh will ask for the class again.
     }
@@ -54,7 +56,7 @@ export default function Checkout() {
   // Signed-in clients start with their own details; they can still change them.
   const { user } = useAuth();
   const [attendeeName, setAttendeeName] = useState(user?.name ?? '');
-  const [attendeeEmail, setAttendeeEmail] = useState(user?.email ?? '');
+  const attendeeEmail = user?.email ?? '';
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [referenceId, setReferenceId] = useState('');
   const [receipt, setReceipt] = useState(null);
@@ -239,14 +241,13 @@ export default function Checkout() {
                   <input
                     id="attendee-email"
                     type="email"
-                    autoComplete="email"
-                    maxLength={254}
+                    readOnly
                     value={attendeeEmail}
-                    onChange={(e) => setAttendeeEmail(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-sand focus:outline-none focus:border-brand-brown bg-white"
+                    title="Bookings go to the email you signed in with"
+                    className="w-full px-3 py-2 rounded-lg border border-brand-sand bg-brand-sand/10 text-brand-dark/70 cursor-not-allowed"
                   />
                 </div>
-                <p className="sm:col-span-2 text-xs text-brand-dark/60">We send your class reminder to this email, about 12 hours before the class.</p>
+                <p className="sm:col-span-2 text-xs text-brand-dark/60">This is the email you signed in with. Your confirmation and class reminder go here.</p>
               </div>
             </section>
 

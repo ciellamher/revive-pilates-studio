@@ -93,7 +93,12 @@ export default function Login() {
         
         {/* Right Side Card */}
         <div className="w-full max-w-md bg-white rounded-[20px] p-8 md:p-10 shadow-[0_4px_24px_rgba(0,0,0,0.02)] border border-brand-dark/5">
-          <h2 className="text-[28px] font-serif text-brand-dark mb-8">Sign in</h2>
+          <h2 className="text-[28px] font-serif text-brand-dark mb-2">Sign in or sign up</h2>
+          <p className="text-sm text-brand-dark/60 mb-8">
+            {returnTo === '/checkout'
+              ? 'Sign in to book your class. New here? Enter your email and name and we will create your account. You will come straight back to your booking.'
+              : 'New here? Enter your email and name and we will create your account.'}
+          </p>
           
           <form onSubmit={handleSubmit} className="flex flex-col gap-8">
             <div>

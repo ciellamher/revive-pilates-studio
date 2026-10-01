@@ -6,8 +6,6 @@ export const CLASS_TYPES = [
   'Barre',
   'Private Session',
   'Duo Private',
-  'Trio Private',
-  'Clinical Pilates',
 ]
 
 export const DEFAULT_CAPACITY = {

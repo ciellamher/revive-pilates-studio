@@ -160,3 +160,13 @@ CREATE TABLE IF NOT EXISTS studio_settings (
   value      JSONB       NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- One row per rate-limited action (sign-in email, newsletter, booking…), so
+-- the API can refuse floods even though each request may run on a fresh
+-- server. Rows older than a day are deleted as new ones arrive.
+CREATE TABLE IF NOT EXISTS rate_limit_events (
+  key        TEXT        NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS rate_limit_events_key_idx ON rate_limit_events (key, created_at);
