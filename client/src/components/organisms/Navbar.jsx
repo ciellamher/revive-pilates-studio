@@ -1,12 +1,18 @@
 import { Menu, User, Calendar, Package, Award, Receipt, Bell, FileText, LogOut, ChevronDown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import logoImg from '../../assets/logo.png';
 import logoTextImg from '../../assets/logo_text.png';
 
 export default function Navbar({ adminTheme }) {
-  const { isLoggedIn, user, logout } = useAuth();
+  const { isLoggedIn, user, logout: endSession } = useAuth();
+  const navigate = useNavigate();
+  // Leave any members-only page before the session goes, so it never has to redirect.
+  const logout = () => {
+    navigate('/');
+    endSession();
+  };
   const displayName = user?.name || user?.email?.split('@')[0] || 'Account';
   const firstName = displayName.split(' ')[0];
   const initial = displayName.charAt(0).toUpperCase();

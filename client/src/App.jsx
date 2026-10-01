@@ -11,6 +11,7 @@ import AdminDashboard from './pages/AdminDashboard';
 
 import Verify from './pages/Verify';
 import BuyPackage from './pages/BuyPackage';
+import Privacy from './pages/Privacy';
 import RequireAuth from './components/RequireAuth';
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
           <Route path="/buy/:packageId" element={<RequireAuth><BuyPackage /></RequireAuth>} />
           <Route path="/pilates" element={<Pilates />} />
           <Route path="/verify" element={<Verify />} />
+          <Route path="/privacy" element={<Privacy />} />
         </Routes>
       </PageTransition>
     </Router>

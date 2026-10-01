@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import Navbar from '../components/organisms/Navbar';
 import ClassScheduleGrid from '../components/organisms/ClassScheduleGrid';
 import CustomDropdown from '../components/atoms/CustomDropdown';
-import { Calendar, Users, UserCheck, ClipboardCheck, Settings, CheckCircle, XCircle, Plus, Minus, Edit3, LayoutList, ChevronLeft, ChevronRight, ChevronDown, Search, ArrowUp, ArrowDown, Filter, Upload, Image as ImageIcon } from 'lucide-react';
+import { Calendar, Users, UserCheck, ClipboardCheck, Settings, CheckCircle, XCircle, Plus, Minus, Edit3, LayoutList, ChevronLeft, ChevronRight, ChevronDown, Search, ArrowUp, ArrowDown, Filter, Upload } from 'lucide-react';
 import AdminCoaches from '../components/organisms/AdminCoaches';
+import AdminStudioSettings from '../components/organisms/AdminStudioSettings';
+import AdminClientProfile from '../components/organisms/AdminClientProfile';
 import { apiFetch } from '../api/base';
 
 // Every half hour from 8:00 AM to 8:00 PM. The schedule grid only has
@@ -28,6 +30,32 @@ const MAX_CAPACITY = 50;
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('pending');
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [profileEmail, setProfileEmail] = useState(null);
+  // The receipt image of the booking being verified, fetched when it opens.
+  const [bookingReceipt, setBookingReceipt] = useState({ state: 'idle', src: null });
+  // A package purchase receipt shown full size.
+  const [receiptPreview, setReceiptPreview] = useState(null);
+
+  useEffect(() => {
+    if (!selectedBooking) return;
+    if (!selectedBooking.hasReceipt) {
+      setBookingReceipt({ state: 'none', src: null });
+      return;
+    }
+    setBookingReceipt({ state: 'loading', src: null });
+    apiFetch(`/api/bookings/${selectedBooking.id}/receipt`)
+      .then(res => res.json())
+      .then(data => setBookingReceipt({ state: data.receipt ? 'ready' : 'none', src: data.receipt }))
+      .catch(() => setBookingReceipt({ state: 'error', src: null }));
+  }, [selectedBooking]);
+
+  const openPurchaseReceipt = (purchase) => {
+    setReceiptPreview({ state: 'loading', src: null, title: `${purchase.clientName || purchase.clientEmail} • ${purchase.name}` });
+    apiFetch(`/api/package-purchases/${purchase.id}/receipt`)
+      .then(res => res.json())
+      .then(data => setReceiptPreview(prev => prev && { ...prev, state: 'ready', src: data.receipt }))
+      .catch(() => setReceiptPreview(prev => prev && { ...prev, state: 'error' }));
+  };
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
   const [prefilledClassData, setPrefilledClassData] = useState(null);
@@ -362,7 +390,10 @@ export default function AdminDashboard() {
                           <p className="font-bold text-brand-dark shrink-0">{p.price}</p>
                         </div>
                         <p className="text-sm font-bold text-brand-dark">{p.name}</p>
-                        <p className="text-xs text-brand-dark/60 mb-4">Ref <span className="font-mono">{p.referenceId}</span> • Bought {new Date(p.purchasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                        <p className="text-xs text-brand-dark/60 mb-4">
+                          Ref <span className="font-mono">{p.referenceId}</span> • Bought {new Date(p.purchasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          {p.hasReceipt && <> • <button onClick={() => openPurchaseReceipt(p)} className="font-bold text-brand-brown underline underline-offset-2">View receipt</button></>}
+                        </p>
                         <div className="mt-auto flex gap-3">
                           <button
                             onClick={() => setPurchaseStatus(p, 'rejected')}
@@ -561,7 +592,7 @@ export default function AdminDashboard() {
           
           <div className="md:hidden space-y-3">
             {filteredClients.length > 0 ? filteredClients.map((user) => (
-              <div key={user.email} className="bg-white rounded-xl shadow-sm border border-brand-sand/30 p-5 flex items-center justify-between gap-4">
+              <button key={user.email} onClick={() => setProfileEmail(user.email)} className="w-full text-left bg-white rounded-xl shadow-sm border border-brand-sand/30 p-5 flex items-center justify-between gap-4 hover:border-brand-brown transition-colors">
                 <div className="min-w-0">
                   <p className="font-bold text-brand-dark break-words">{user.name || <span className="font-normal opacity-50">No name yet</span>}</p>
                   <p className="text-sm text-brand-dark/70 break-all">{user.email}</p>
@@ -570,7 +601,7 @@ export default function AdminDashboard() {
                   <p className="text-lg font-bold text-brand-dark leading-none">{user.bookings}</p>
                   <p className="text-[11px] text-brand-dark/50 mt-1">{user.bookings === 1 ? 'booking' : 'bookings'}</p>
                 </div>
-              </div>
+              </button>
             )) : (
               <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 py-8 text-center text-brand-dark/50 font-medium">No clients found matching your search.</div>
             )}
@@ -599,7 +630,7 @@ export default function AdminDashboard() {
                     <td className="py-4 px-6 text-brand-dark text-sm">{user.email}</td>
                     <td className="py-4 px-6 text-brand-dark text-sm">{user.bookings}</td>
                     <td className="py-4 px-6 text-right">
-                      <button className="text-brand-brown hover:underline text-sm font-bold">View Profile</button>
+                      <button onClick={() => setProfileEmail(user.email)} className="text-brand-brown hover:underline text-sm font-bold">View Profile</button>
                     </td>
                   </tr>
                 )) : (
@@ -615,57 +646,7 @@ export default function AdminDashboard() {
     }
 
     if (activeTab === 'settings') {
-      return (
-        <div className="animate-fade-in max-w-3xl">
-          <h2 className="text-3xl font-bold text-brand-dark mb-8">Studio Settings</h2>
-          
-          <div className="bg-white rounded-xl shadow-sm border border-brand-sand/30 p-8 mb-8">
-            <h3 className="text-xl font-bold text-brand-dark mb-6 border-b border-brand-sand/30 pb-4">Payment Methods</h3>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-brand-dark mb-2">GCash Number</label>
-                <input type="text" defaultValue="0917 123 4567" className="w-full border border-brand-sand/50 rounded-lg px-4 py-2 focus:outline-none focus:border-brand-brown" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-brand-dark mb-2">GCash QR Code</label>
-                <div className="border-2 border-dashed border-brand-sand/50 rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-black/5 transition-colors cursor-pointer group">
-                  <div className="w-12 h-12 rounded-full bg-brand-brown/10 text-brand-brown flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <ImageIcon size={24} />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-brand-dark">Click to upload QR code</p>
-                    <p className="text-xs text-brand-dark/50 mt-1">PNG, JPG up to 5MB</p>
-                  </div>
-                  <input type="file" className="hidden" accept="image/*" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-brand-dark mb-2">BPI Account Number</label>
-                <input type="text" defaultValue="1234 5678 90" className="w-full border border-brand-sand/50 rounded-lg px-4 py-2 focus:outline-none focus:border-brand-brown" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-brand-dark mb-2">BPI QR Code</label>
-                <div className="border-2 border-dashed border-brand-sand/50 rounded-xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-black/5 transition-colors cursor-pointer group">
-                  <div className="w-12 h-12 rounded-full bg-brand-brown/10 text-brand-brown flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <ImageIcon size={24} />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-brand-dark">Click to upload QR code</p>
-                    <p className="text-xs text-brand-dark/50 mt-1">PNG, JPG up to 5MB</p>
-                  </div>
-                  <input type="file" className="hidden" accept="image/*" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-brand-dark mb-2">Account Name</label>
-                <input type="text" defaultValue="Revive Pilates Studio" className="w-full border border-brand-sand/50 rounded-lg px-4 py-2 focus:outline-none focus:border-brand-brown" />
-              </div>
-              <button className={`${theme.bg} ${theme.text} ${theme.bgHover} px-6 py-2 rounded-lg font-bold transition-colors`}>Save Changes</button>
-
-            </div>
-          </div>
-        </div>
-      );
+      return <AdminStudioSettings theme={theme} />;
     }
     
     return null;
@@ -721,6 +702,26 @@ export default function AdminDashboard() {
         </main>
       </div>
 
+      {profileEmail && <AdminClientProfile email={profileEmail} onClose={() => setProfileEmail(null)} />}
+
+      {receiptPreview && (
+        <div className="fixed inset-0 bg-black/70 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={() => setReceiptPreview(null)}>
+          <div role="dialog" aria-modal="true" aria-label="Receipt" className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-brand-sand/30">
+              <p className="font-bold text-brand-dark text-sm truncate">{receiptPreview.title}</p>
+              <button onClick={() => setReceiptPreview(null)} aria-label="Close" className="text-brand-dark/40 hover:text-brand-dark"><XCircle size={22} /></button>
+            </div>
+            <div className="flex-1 overflow-auto bg-[#FAF7F2] flex items-center justify-center min-h-[200px]">
+              {receiptPreview.state === 'ready' && receiptPreview.src ? (
+                <img src={receiptPreview.src} alt="Payment receipt" className="max-w-full" />
+              ) : (
+                <p className="text-sm text-brand-dark/60 p-8">{receiptPreview.state === 'loading' ? 'Loading receipt…' : 'The receipt could not be loaded.'}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Verification Modal */}
       {selectedBooking && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
@@ -728,15 +729,19 @@ export default function AdminDashboard() {
             
             {/* Receipt Image Side (Edge-to-Edge) */}
             <div className="w-full md:w-1/2 h-64 md:h-auto">
-              {selectedBooking.receiptUrl ? (
-                <img 
-                  src={selectedBooking.receiptUrl} 
-                  alt="Payment Receipt" 
-                  className="w-full h-full object-cover"
-                />
+              {bookingReceipt.state === 'ready' ? (
+                <a href={bookingReceipt.src} target="_blank" rel="noreferrer" title="Open full size" className="block w-full h-full bg-[#FAF7F2]">
+                  <img 
+                    src={bookingReceipt.src} 
+                    alt="Payment receipt" 
+                    className="w-full h-full object-contain"
+                  />
+                </a>
               ) : (
                 <div className="w-full h-full bg-[#FAF7F2] flex items-center justify-center p-8 text-center text-sm text-[#1C2C39]/60">
-                  No receipt image was uploaded. Check the reference number against your GCash or BPI records.
+                  {bookingReceipt.state === 'loading' ? 'Loading receipt…'
+                    : bookingReceipt.state === 'error' ? 'The receipt could not be loaded.'
+                    : 'No receipt image was uploaded. Check the reference number against your GCash or BPI records.'}
                 </div>
               )}
             </div>

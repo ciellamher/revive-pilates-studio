@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/organisms/Navbar';
 import BookYourSpotSchedule from '../components/organisms/BookYourSpotSchedule';
 import ClassScheduleGrid from '../components/organisms/ClassScheduleGrid';
@@ -6,6 +7,9 @@ import Footer from '../components/organisms/Footer';
 
 export default function Booking() {
   const [view, setView] = useState('list'); // 'list' | 'calendar'
+  // /book?category=private opens straight onto classes that can be booked privately.
+  const [searchParams] = useSearchParams();
+  const initialCategory = searchParams.get('category') === 'private' ? 'Private Sessions' : 'All categories';
   const [location, setLocation] = useState('Location');
 
   // Dynamic theme colors
@@ -59,9 +63,9 @@ export default function Booking() {
         </div>
 
         {view === 'list' ? (
-          <BookYourSpotSchedule globalLocation={location} setGlobalLocation={setLocation} />
+          <BookYourSpotSchedule globalLocation={location} setGlobalLocation={setLocation} initialCategory={initialCategory} />
         ) : (
-          <ClassScheduleGrid hideTitle={true} globalLocation={location} setGlobalLocation={setLocation} />
+          <ClassScheduleGrid hideTitle={true} globalLocation={location} setGlobalLocation={setLocation} initialCategory={initialCategory} />
         )}
       </main>
 

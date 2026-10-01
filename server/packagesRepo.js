@@ -2,6 +2,7 @@
 // goes in the parameter array.
 
 import { CREDIT_TYPES, formatPeso } from './packagesCatalog.js'
+import { BOOKABLE } from './bookingsRepo.js'
 
 // Credits still free on a purchase, per type: bought minus the bookings that
 // still hold one (a rejected or cancelled booking gives its credit back).
@@ -14,7 +15,7 @@ const REMAINING = Object.fromEntries(CREDIT_TYPES.map((type) => [type, `
 
 const COLUMNS = `
   up.id, up.user_email, up.package_id, up.name, up.price, up.expiry_days,
-  up.reference_id, up.status, up.created_at, up.activated_at, up.expires_at,
+  up.reference_id, up.status, up.created_at, (up.receipt IS NOT NULL) AS has_receipt, up.activated_at, up.expires_at,
   (up.status = 'active' AND up.expires_at <= now()) AS is_expired,
   (SELECT name FROM users WHERE email = up.user_email) AS client_name,
   ${CREDIT_TYPES.map((type) => `up.${type}_credits, ${REMAINING[type]}`).join(',')}`
@@ -30,6 +31,7 @@ function toPurchase(row) {
     name: row.name,
     price: row.price,
     referenceId: row.reference_id,
+    hasReceipt: row.has_receipt,
     status: row.is_expired ? 'expired' : row.status,
     clientEmail: row.user_email,
     clientName: row.client_name ?? '',
@@ -41,20 +43,26 @@ function toPurchase(row) {
   }
 }
 
-export async function create(pool, email, pkg, referenceId) {
+export async function create(pool, email, pkg, referenceId, receipt) {
   const result = await pool.query(
     `INSERT INTO user_packages
        (user_email, package_id, name, price, reformer_credits, mat_credits, group_credits,
-        private_credits, clinical_credits, expiry_days, reference_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        private_credits, clinical_credits, expiry_days, reference_id, receipt)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING id`,
     [
       email, pkg.id, pkg.subtitle ? `${pkg.subtitle}: ${pkg.title}` : pkg.title, formatPeso(pkg.price),
       pkg.credits.reformer ?? 0, pkg.credits.mat ?? 0, pkg.credits.group ?? 0,
       pkg.credits.private ?? 0, pkg.credits.clinical ?? 0, pkg.expiryDays, referenceId,
+      receipt ?? null,
     ]
   )
   return getById(pool, result.rows[0].id)
+}
+
+export async function getReceipt(pool, id) {
+  const result = await pool.query('SELECT receipt FROM user_packages WHERE id = $1', [id])
+  return result.rows[0] ? result.rows[0].receipt : undefined
 }
 
 export async function getById(pool, id) {
@@ -92,7 +100,7 @@ export async function setStatus(pool, id, status) {
 // Books a spot paid with one credit, inside a transaction that locks the
 // purchase, so two bookings at once cannot spend the same last credit.
 // Returns { booking } or { problem }.
-export async function bookWithCredit(pool, { purchaseId, email, classId, spot, clientName, creditTypes }) {
+export async function bookWithCredit(pool, { purchaseId, email, classId, spot, clientName, creditTypes, isPrivate = false }) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -126,15 +134,12 @@ export async function bookWithCredit(pool, { purchaseId, email, classId, spot, c
 
     const inserted = await client.query(
       `INSERT INTO bookings
-         (class_id, client_name, client_email, spot, reference_id, amount, status, user_package_id, credit_type)
-       SELECT c.id, $2, $3, $4, $5, '1 credit', 'confirmed', $6, $7
+         (class_id, client_name, client_email, spot, reference_id, amount, status, user_package_id, credit_type, is_private)
+       SELECT c.id, $2, $3, $4, $5, '1 credit', 'confirmed', $6, $7, $8
        FROM classes c
-       WHERE c.id = $1
-         AND NOT c.is_cancelled
-         AND $4 <= c.capacity
-         AND ((c.class_date + to_timestamp(c.start_time, 'HH12:MI AM')::time) AT TIME ZONE 'Asia/Manila') > now()
+       WHERE ${BOOKABLE('$4', '$8::boolean')}
        RETURNING id`,
-      [classId, clientName, email, spot, `Package #${purchaseId}`, purchaseId, creditType]
+      [classId, clientName, email, spot, `Package #${purchaseId}`, purchaseId, creditType, isPrivate]
     )
     if (inserted.rowCount === 0) {
       await client.query('ROLLBACK')

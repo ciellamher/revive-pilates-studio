@@ -25,13 +25,17 @@ Routes marked *admin* need a signed-in admin session (`Authorization: Bearer <se
 - `PATCH /api/classes/:id` - Update a class, or cancel/restore it with `{ "isCancelled": true }`. Cancelling emails everyone booked. *admin*
 - `GET /api/coaches` - Fetch coaches and the branches they teach at.
 - `POST /api/coaches`, `PUT /api/coaches/:id`, `DELETE /api/coaches/:id` - Manage coaches. *admin*
-- `POST /api/bookings` - Book a spot in a class (name, email, spot, payment reference).
+- `POST /api/bookings` - Book a spot in a class (name, email, spot, payment reference, optional receipt image), a whole empty Reformer class as a private session with `private: true`, or pay with a package credit with `packageId`.
 - `GET /api/bookings` - Fetch bookings. *admin*
 - `PATCH /api/bookings/:id` - Confirm or reject a booking. Confirming emails the client. *admin*
 - `GET /api/users` - Fetch the client directory. *admin*
 - `GET /api/packages` - The package catalog (prices, credits, expiry).
 - `GET /api/me/packages`, `POST /api/me/packages` - A client's packages, and buying one with a payment reference. *signed in*
 - `GET /api/package-purchases`, `PATCH /api/package-purchases/:id` - Activate or reject package purchases. Activating emails the client. *admin*
+- `GET /api/settings/payment` (public), `PUT /api/settings/payment` - The GCash/BPI accounts and QR codes shown at checkout. Saving is *admin*.
+- `GET /api/bookings/:id/receipt`, `GET /api/package-purchases/:id/receipt` - A client's proof-of-payment image. *admin*
+- `GET /api/users/:email` - One client's profile, bookings and packages. *admin*
+- `POST /api/newsletter` - Sign up for studio news (switches on promotional emails).
 - `GET /api/me/profile`, `PUT /api/me/profile` - A client's profile and email preferences. *signed in*
 - `GET /api/me/bookings`, `POST /api/me/bookings/:id/cancel` - A client's bookings, and cancelling one up to 12 hours before class. *signed in*
 - `POST /api/auth/login` - Email a one-time sign-in link.
@@ -134,8 +138,7 @@ Open `http://localhost:5173` in your browser. You should see the Revive Pilates 
 ## Known issues and next steps
 
 **Known Issues:**
-- Private and clinical package credits are shown in the client's account but booked with the studio directly.
-- The proof-of-payment upload is visual only; the admin verifies a booking by its payment reference number.
+- Clinical package credits are shown in the client's account but booked with the studio directly.
 - Checkout process is visual only and does not process real payments.
 - Without a Gmail account configured, Nodemailer falls back to Ethereal: emails are not delivered, and preview links are printed to the server console.
 

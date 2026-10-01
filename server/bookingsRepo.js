@@ -6,7 +6,7 @@ const STUDIO_TIMEZONE = 'Asia/Manila'
 const CLASS_START = `((c.class_date + to_timestamp(c.start_time, 'HH12:MI AM')::time) AT TIME ZONE '${STUDIO_TIMEZONE}')`
 
 const BOOKING_WITH_CLASS = `
-  b.id, b.status, b.client_name, b.client_email, b.spot, b.reference_id, b.amount,
+  b.id, b.status, b.is_private, (b.receipt IS NOT NULL) AS has_receipt, b.client_name, b.client_email, b.spot, b.reference_id, b.amount,
   c.title, to_char(c.class_date, 'YYYY-MM-DD') AS date, c.start_time,
   (SELECT name FROM coaches WHERE id = c.coach_id) AS instructor, c.branch`
 
@@ -17,7 +17,9 @@ function toBooking(row) {
     status: row.status,
     clientName: row.client_name,
     clientEmail: row.client_email,
-    className: row.title,
+    className: row.is_private ? `${row.title} (Private)` : row.title,
+    isPrivate: row.is_private,
+    hasReceipt: row.has_receipt,
     date: row.date,
     time: row.start_time,
     branch: row.branch,
@@ -34,7 +36,7 @@ function toRecipient(row) {
     name: row.client_name,
     email: row.client_email,
     spot: row.spot,
-    title: row.title,
+    title: row.is_private ? `${row.title} (Private)` : row.title,
     date: row.date,
     time: row.start_time,
     instructor: row.instructor,
@@ -51,23 +53,35 @@ export async function getAll(pool) {
   return result.rows.map(toBooking)
 }
 
+// The conditions a class must meet to take a new booking. A private booking
+// needs a Reformer class nobody has booked yet; any booking needs the class
+// not to be held privately already.
+export const BOOKABLE = (spotParam, privateParam) => `
+  c.id = $1
+  AND NOT c.is_cancelled
+  AND ${spotParam} <= c.capacity
+  AND ${CLASS_START} > now()
+  AND NOT EXISTS (
+    SELECT 1 FROM bookings x
+    WHERE x.class_id = c.id AND x.status NOT IN ('rejected', 'cancelled')
+      AND (x.is_private OR ${privateParam})
+  )
+  AND (NOT ${privateParam} OR c.title ILIKE '%reformer%')`
+
 // Returns { booking } on success, or { problem } naming why it was refused.
 // The checks and the insert are one statement, so a class cannot be cancelled
 // or start between the check and the insert.
 export async function create(pool, input) {
   try {
     const inserted = await pool.query(
-      `INSERT INTO bookings (class_id, client_name, client_email, spot, reference_id, amount)
-       SELECT c.id, $2, $3, $4, $5, $6
+      `INSERT INTO bookings (class_id, client_name, client_email, spot, reference_id, amount, is_private, receipt)
+       SELECT c.id, $2, $3, $4, $5, $6, $7, $8
        FROM classes c
-       WHERE c.id = $1
-         AND NOT c.is_cancelled
-         AND $4 <= c.capacity
-         AND ${CLASS_START} > now()
+       WHERE ${BOOKABLE('$4', '$7::boolean')}
        RETURNING id`,
       [
         input.classId, input.clientName, input.clientEmail, input.spot,
-        input.referenceId, input.amount,
+        input.referenceId, input.amount, input.isPrivate ?? false, input.receipt ?? null,
       ]
     )
     if (inserted.rowCount === 0) return { problem: 'unavailable' }
@@ -192,6 +206,11 @@ export async function cancelForClient(pool, id, email) {
   if (result.rowCount > 0) return 'cancelled'
   const owned = await pool.query('SELECT 1 FROM bookings WHERE id = $1 AND client_email = $2', [id, email])
   return owned.rowCount > 0 ? 'too-late' : 'not-found'
+}
+
+export async function getReceipt(pool, id) {
+  const result = await pool.query('SELECT receipt FROM bookings WHERE id = $1', [id])
+  return result.rows[0] ? result.rows[0].receipt : undefined
 }
 
 // Everyone who should hear that a class was cancelled.

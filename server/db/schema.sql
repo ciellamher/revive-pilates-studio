@@ -144,3 +144,19 @@ CREATE INDEX IF NOT EXISTS user_packages_user_email_idx ON user_packages (user_e
 -- still holding one, so a cancelled or rejected booking gives its credit back.
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_package_id INTEGER REFERENCES user_packages (id);
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS credit_type TEXT;
+
+-- A private session books a whole empty Reformer class for one client.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT false;
+
+-- Proof of payment: a small image the client attaches, kept as a data: URL.
+-- Images are shrunk in the browser first, so each is a few hundred kilobytes.
+ALTER TABLE bookings      ADD COLUMN IF NOT EXISTS receipt TEXT;
+ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS receipt TEXT;
+
+-- Studio settings the admin edits, such as the payment accounts shown at
+-- checkout. One JSON value per key.
+CREATE TABLE IF NOT EXISTS studio_settings (
+  key        TEXT        PRIMARY KEY,
+  value      JSONB       NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

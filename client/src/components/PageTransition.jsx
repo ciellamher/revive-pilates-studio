@@ -3,6 +3,12 @@ import { useLocation } from 'react-router-dom';
 import logoImg from '../assets/logo.png';
 import logoTextImg from '../assets/logo_text.png';
 
+// Links like /pilates#faqs land on that section once the page has rendered.
+function scrollToHash(hash) {
+  if (!hash) return;
+  setTimeout(() => document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+}
+
 export default function PageTransition({ children }) {
   const location = useLocation();
   const [displayLocation, setDisplayLocation] = useState(location);
@@ -41,6 +47,7 @@ export default function PageTransition({ children }) {
       const t2 = setTimeout(() => {
         setDisplayLocation(location);
         window.scrollTo(0, 0);
+        scrollToHash(location.hash);
         
         // 4. Slide out down to the bottom
         const t3 = setTimeout(() => {
@@ -60,10 +67,11 @@ export default function PageTransition({ children }) {
     }
     // Same page, different ?query (like a tab): no curtain, just pass it on, or
     // the page would keep reading the old query.
-    if (location.search !== displayLocation.search || location.state !== displayLocation.state) {
+    if (location.search !== displayLocation.search || location.state !== displayLocation.state || location.hash !== displayLocation.hash) {
       setDisplayLocation(location);
+      scrollToHash(location.hash);
     }
-  }, [location, displayLocation.pathname, displayLocation.search, displayLocation.state]);
+  }, [location, displayLocation.pathname, displayLocation.search, displayLocation.state, displayLocation.hash]);
 
   const getOverlayClass = () => {
     switch (phase) {

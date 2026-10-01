@@ -3,34 +3,34 @@ import { Link } from 'react-router-dom';
 
 const PRICING_DATA = {
   'Starter Packages': [
-    { title: 'Revive Starter', sessions: '1 Private + 3 Group', price: '₱5,220', originalPrice: '₱5,800', expiry: '1 month', note: 'Not shareable' },
-    { title: 'Intro Boost', sessions: '3 Private + 2 Group', price: '₱7,380', originalPrice: '₱8,200', expiry: '1 month', note: 'Not shareable', isIntro: true },
-    { title: 'Trial One', sessions: '1 Private + 1 Group', price: '₱3,240', originalPrice: '₱3,600', expiry: '14 days', note: 'Not shareable' },
-    { title: 'Trial Two', sessions: '2 Reformer + 2 Mat Group', price: '₱2,880', originalPrice: '₱3,198', expiry: '1 month', note: 'Not shareable' },
+    { id: 'revive-starter', title: 'Revive Starter', sessions: '1 Private + 3 Group', price: '₱5,220', originalPrice: '₱5,800', expiry: '1 month', note: 'Not shareable' },
+    { id: 'intro-boost', title: 'Intro Boost', sessions: '3 Private + 2 Group', price: '₱7,380', originalPrice: '₱8,200', expiry: '1 month', note: 'Not shareable', isIntro: true },
+    { id: 'trial-one', title: 'Trial One', sessions: '1 Private + 1 Group', price: '₱3,240', originalPrice: '₱3,600', expiry: '14 days', note: 'Not shareable' },
+    { id: 'trial-two', title: 'Trial Two', sessions: '2 Reformer + 2 Mat Group', price: '₱2,880', originalPrice: '₱3,198', expiry: '1 month', note: 'Not shareable' },
   ],
   'Group Classes': [
-    { subtitle: 'Reformer Group Classes', title: '5-Session Package', price: '₱5,250', expiry: '1 month' },
-    { subtitle: 'Reformer Group Classes', title: '10-Session Package', price: '₱10,000', expiry: '2 months' },
-    { subtitle: 'Reformer Group Classes', title: '22-Session Package', price: '₱20,000', expiry: '4 months' },
-    { subtitle: 'Reformer Group Classes', title: '36-Session Package', price: '₱32,000', expiry: '6 months' },
-    { subtitle: 'Mat/Barre Group Classes', title: '5-Session Package', price: '₱2,375', expiry: '2 months' },
-    { subtitle: 'Mat/Barre Group Classes', title: '10-Session Package', price: '₱4,500', expiry: '4 months' },
-    { subtitle: 'Mat/Barre Group Classes', title: '20-Session Package', price: '₱8,500', expiry: '8 months' },
-    { subtitle: 'Mat/Barre Group Classes', title: '30-Session Package', price: '₱12,000', expiry: '12 months' },
+    { id: 'reformer-5', subtitle: 'Reformer Group Classes', title: '5-Session Package', price: '₱5,250', expiry: '1 month' },
+    { id: 'reformer-10', subtitle: 'Reformer Group Classes', title: '10-Session Package', price: '₱10,000', expiry: '2 months' },
+    { id: 'reformer-22', subtitle: 'Reformer Group Classes', title: '22-Session Package', price: '₱20,000', expiry: '4 months' },
+    { id: 'reformer-36', subtitle: 'Reformer Group Classes', title: '36-Session Package', price: '₱32,000', expiry: '6 months' },
+    { id: 'mat-5', subtitle: 'Mat/Barre Group Classes', title: '5-Session Package', price: '₱2,375', expiry: '2 months' },
+    { id: 'mat-10', subtitle: 'Mat/Barre Group Classes', title: '10-Session Package', price: '₱4,500', expiry: '4 months' },
+    { id: 'mat-20', subtitle: 'Mat/Barre Group Classes', title: '20-Session Package', price: '₱8,500', expiry: '8 months' },
+    { id: 'mat-30', subtitle: 'Mat/Barre Group Classes', title: '30-Session Package', price: '₱12,000', expiry: '12 months' },
   ],
   'Private Classes': [
-    { subtitle: 'Private Classes', title: 'Intro Class', sessions: '3-Session Package For First Timers', price: '₱6,000', expiry: '1 month', isIntro: true },
-    { subtitle: 'Private Classes', title: '8-Session Package', price: '₱19,000', expiry: '2 months' },
-    { subtitle: 'Private Classes', title: '12-Session Package', price: '₱27,600', expiry: '3 months' },
-    { subtitle: 'Duo Private Classes', title: '8-Session Package', price: '₱17,000', note: 'per pax', expiry: '2 months' },
-    { subtitle: 'Duo Private Classes', title: '12-Session Package', price: '₱24,000', note: 'per pax', expiry: '3 months' },
-    { subtitle: 'Trio Private Classes', title: '8-Session Package', price: '₱15,500', note: 'per pax', expiry: '2 months' },
-    { subtitle: 'Trio Private Classes', title: '12-Session Package', price: '₱22,500', note: 'per pax', expiry: '3 months' },
+    { id: 'private-intro', subtitle: 'Private Classes', title: 'Intro Class', sessions: '3-Session Package For First Timers', price: '₱6,000', expiry: '1 month', isIntro: true },
+    { id: 'private-8', subtitle: 'Private Classes', title: '8-Session Package', price: '₱19,000', expiry: '2 months' },
+    { id: 'private-12', subtitle: 'Private Classes', title: '12-Session Package', price: '₱27,600', expiry: '3 months' },
+    { id: 'duo-8', subtitle: 'Duo Private Classes', title: '8-Session Package', price: '₱17,000', note: 'per pax', expiry: '2 months' },
+    { id: 'duo-12', subtitle: 'Duo Private Classes', title: '12-Session Package', price: '₱24,000', note: 'per pax', expiry: '3 months' },
+    { id: 'trio-8', subtitle: 'Trio Private Classes', title: '8-Session Package', price: '₱15,500', note: 'per pax', expiry: '2 months' },
+    { id: 'trio-12', subtitle: 'Trio Private Classes', title: '12-Session Package', price: '₱22,500', note: 'per pax', expiry: '3 months' },
   ],
   'Clinical Pilates': [
-    { title: 'Single Session', price: '₱2,800', expiry: '30 days' },
-    { title: '8-Session Package', price: '₱22,000', expiry: '2 months' },
-    { title: '12-Session Package', price: '₱32,000', expiry: '3 months' }
+    { id: 'clinical-1', title: 'Single Session', price: '₱2,800', expiry: '30 days' },
+    { id: 'clinical-8', title: '8-Session Package', price: '₱22,000', expiry: '2 months' },
+    { id: 'clinical-12', title: '12-Session Package', price: '₱32,000', expiry: '3 months' }
   ]
 };
 
@@ -75,7 +75,7 @@ function PackageCard({ pkg }) {
             )}
           </div>
           
-          <Link to="/checkout" className="flex justify-center items-center border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-8 py-2 text-[14px] font-medium transition-colors bg-transparent w-full">
+          <Link to={pkg.id ? `/buy/${pkg.id}` : '/pricing'} className="flex justify-center items-center border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-8 py-2 text-[14px] font-medium transition-colors bg-transparent w-full">
             Buy now
           </Link>
         </div>

@@ -15,3 +15,12 @@ export function checkoutClassState(cls) {
     slotsLeft: Math.max(0, cls.capacity - takenSpots.length),
   }
 }
+
+// The same class booked as a private session: the whole room for one client.
+export function checkoutPrivateState(cls) {
+  return { ...checkoutClassState(cls), title: 'Private Class', isPrivate: true, isWaitlist: false, slotsLeft: 1 }
+}
+
+// A Reformer class nobody has booked yet can be taken as a private session.
+export const canBookPrivately = (cls) =>
+  !cls.isCancelled && !cls.isDone && (cls.takenSpots?.length ?? 0) === 0 && cls.title.toLowerCase().includes('reformer')

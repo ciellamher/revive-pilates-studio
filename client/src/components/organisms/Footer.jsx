@@ -32,18 +32,17 @@ export default function Footer() {
             {/* Resources */}
             <div className="flex flex-col gap-4">
               <h4 className="text-[15px] font-medium text-brand-dark mb-4">Resources</h4>
-              <Link to="/schedule" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">Schedule</Link>
-              <a href="#faqs" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">FAQs</a>
-              <Link to="/policies" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">Studio Policies</Link>
-              <Link to="/intake" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">Private Session Intake Form</Link>
+              <Link to="/book" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">Schedule</Link>
+              <Link to="/pilates#faqs" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">FAQs</Link>
+              <Link to="/pilates#terms" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">Studio Policies</Link>
+              <Link to="/book?category=private" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">Book a Private Session</Link>
               <Link to="/privacy" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">Privacy Policy</Link>
-              <a href="#" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">Download Our App</a>
             </div>
 
             {/* Contact */}
             <div className="flex flex-col gap-4">
               <h4 className="text-[15px] font-medium text-brand-dark mb-4">Contact</h4>
-              <a href="mailto:hello@revivestudio.com.ph" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">hello@revivestudio.com.ph</a>
+              <a href="mailto:hello.revivepilates@gmail.com" className="text-[13px] text-brand-dark/80 hover:text-brand-dark underline decoration-brand-dark/30 underline-offset-4 transition-colors">hello.revivepilates@gmail.com</a>
               <p className="text-[13px] text-brand-dark/80">(045) 888-0000</p>
               
               <div className="mt-4 flex items-center gap-4">

@@ -3,7 +3,7 @@ import { ChevronRight, ChevronLeft, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
 import { API_BASE, apiFetch } from '../../api/base';
-import { checkoutClassState } from '../../api/checkoutState';
+import { checkoutClassState, checkoutPrivateState, canBookPrivately } from '../../api/checkoutState';
 
 const getWeekDays = (weeksOffset = 0) => {
   const days = [];
@@ -49,10 +49,14 @@ const TIME_SLOTS = [
 ];
 
 
-export default function ClassScheduleGrid({ hideTitle = false, adminHeader = null, onClassClick = null, onEmptySlotClick = null, branch = null, globalLocation = null, setGlobalLocation = null, refreshKey = 0, view = 'calendar' }) {
+// Filter choices. 'Private Sessions' shows Reformer classes nobody has booked
+// yet, which can be taken as a private session.
+const CLASS_TYPE_OPTIONS = ['Classes', 'Reformer Flow', 'Mat Pilates', 'Barre'];
+
+export default function ClassScheduleGrid({ initialCategory = 'All categories', hideTitle = false, adminHeader = null, onClassClick = null, onEmptySlotClick = null, branch = null, globalLocation = null, setGlobalLocation = null, refreshKey = 0, view = 'calendar' }) {
   const [classType, setClassType] = useState('Classes');
   const [instructor, setInstructor] = useState('Instructor');
-  const [category, setCategory] = useState('All categories');
+  const [category, setCategory] = useState(initialCategory);
   
   const [localLocation, setLocalLocation] = useState('Location');
   const location = globalLocation !== null ? globalLocation : localLocation;
@@ -147,7 +151,8 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
     return classes.filter(cls => {
       if (cls.dateId !== dateId) return false;
       if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return false;
-      if (classType !== 'Classes' && cls.title && !cls.title.toLowerCase().includes(classType.toLowerCase())) return false;
+      if (classType !== 'Classes' && cls.title !== classType) return false;
+      if (category === 'Private Sessions' && !canBookPrivately(cls)) return false;
       if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
       return true;
     });
@@ -257,7 +262,7 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
               <CustomDropdown
                 value={classType}
                 onChange={setClassType}
-                options={['Classes', 'Reformer Group', 'Mat', 'Barre', 'Private Class', 'Clinical Pilates']}
+                options={CLASS_TYPE_OPTIONS}
                 placeholder="Classes"
               />
             </div>
@@ -346,7 +351,7 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
                 <Link 
                   key={cls.id} 
                   to="/checkout" 
-                  state={checkoutClassState(cls)}
+                  state={category === 'Private Sessions' ? checkoutPrivateState(cls) : checkoutClassState(cls)}
                   className={`border rounded-2xl p-5 flex items-start group cursor-pointer shadow-sm hover:shadow-md transition-all ${isDarkTheme ? 'border-white/30 bg-white/5 hover:bg-white/10 hover:border-white' : 'border-[#D8CFC4] bg-[#F5F2ED] hover:bg-white hover:border-[#3A2A20]'}`}
                 >
                   {content}
@@ -468,7 +473,7 @@ export default function ClassScheduleGrid({ hideTitle = false, adminHeader = nul
                           <div key={cls.id} className="absolute left-0 right-0 px-1 py-1 z-10 overflow-hidden" style={{ top: topPosition, height: computedHeight }}>
                             <Link 
                               to="/checkout" 
-                              state={checkoutClassState(cls)}
+                              state={category === 'Private Sessions' ? checkoutPrivateState(cls) : checkoutClassState(cls)}
                               className={`w-full h-full px-2 py-1.5 relative flex flex-col items-start group cursor-pointer rounded-xl transition-all text-left ${isDarkTheme ? 'bg-white/10 hover:bg-white/20' : 'bg-[#F5F2ED] hover:bg-white border border-[#D8CFC4] hover:border-[#3A2A20] shadow-sm hover:shadow-md'}`}
                             >
                               {content}

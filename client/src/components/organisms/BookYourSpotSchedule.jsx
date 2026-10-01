@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
 import { API_BASE } from '../../api/base';
-import { checkoutClassState } from '../../api/checkoutState';
+import { checkoutClassState, checkoutPrivateState, canBookPrivately } from '../../api/checkoutState';
 
 const getWeekDays = (weeksOffset = 0) => {
   const days = [];
@@ -30,7 +30,11 @@ const getWeekDays = (weeksOffset = 0) => {
   return days;
 };
 
-export default function BookYourSpotSchedule({ globalLocation = 'Location', setGlobalLocation = () => {} }) {
+// Filter choices. 'Private Sessions' shows Reformer classes nobody has booked
+// yet, which can be taken as a private session.
+const CLASS_TYPE_OPTIONS = ['Classes', 'Reformer Flow', 'Mat Pilates', 'Barre'];
+
+export default function BookYourSpotSchedule({ globalLocation = 'Location', setGlobalLocation = () => {}, initialCategory = 'All categories' }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const currentWeekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
   const [selectedDayId, setSelectedDayId] = useState(() => new Date().toDateString());
@@ -38,7 +42,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
   // Filter states
   const [classType, setClassType] = useState('Classes');
   const [instructor, setInstructor] = useState('Instructor');
-  const [category, setCategory] = useState('All categories');
+  const [category, setCategory] = useState(initialCategory);
   
   // Use globalLocation as the local state equivalent
   const location = globalLocation;
@@ -78,14 +82,15 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
       const dayClasses = classes.filter(cls => {
         if (cls.dateId !== d.id) return false;
         if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return false;
-        if (classType !== 'Classes' && cls.title && !cls.title.toLowerCase().includes(classType.toLowerCase())) return false;
+        if (classType !== 'Classes' && cls.title !== classType) return false;
+        if (category === 'Private Sessions' && !canBookPrivately(cls)) return false;
         if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
         return true;
       }).map(cls => ({
         ...cls,
         location: cls.branch,
         spots: `${Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0))} / ${cls.capacity} left`,
-        status: cls.isCancelled ? 'Cancelled' : cls.isFull ? 'Waitlist' : 'Book Now'
+        status: cls.isCancelled ? 'Cancelled' : cls.isFull ? 'Full' : category === 'Private Sessions' ? 'Book Private' : 'Book Now'
       }));
       data.push({
         dayId: d.id,
@@ -95,7 +100,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
       });
     });
     return data;
-  }, [currentWeekDays, classes, location, classType, instructor]);
+  }, [currentWeekDays, classes, location, classType, instructor, category]);
 
   const [coaches, setCoaches] = useState([]);
 
@@ -192,7 +197,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
               <CustomDropdown
                 value={classType}
                 onChange={setClassType}
-                options={['Classes', 'Reformer Group', 'Mat', 'Barre', 'Private Class', 'Clinical Pilates']}
+                options={CLASS_TYPE_OPTIONS}
                 placeholder="Classes"
               />
             </div>
@@ -252,14 +257,14 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                         
                         {/* Action Button */}
                         <div className="flex flex-col gap-2 justify-center md:w-1/5 shrink-0">
-                          {cls.isCancelled ? (
+                          {cls.isCancelled || cls.isFull ? (
                             <span className="border border-brand-beige/30 text-brand-beige/60 px-8 py-3 rounded-full text-sm font-bold w-full text-center block">
                               {cls.status}
                             </span>
                           ) : (
                             <Link 
                               to="/checkout"
-                              state={checkoutClassState(cls)}
+                              state={category === 'Private Sessions' ? checkoutPrivateState(cls) : checkoutClassState(cls)}
                               className="bg-brand-sand text-brand-dark px-8 py-3 rounded-full text-sm font-bold hover:bg-white transition-colors w-full shadow-sm text-center block"
                             >
                               {cls.status}
@@ -267,19 +272,11 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                           )}
                           
                           {(() => {
-                            const match = cls.spots.match(/(\d+)\s*\/\s*(\d+)/);
-                            const isMatOrBarre = cls.title.toLowerCase().includes('mat') || cls.title.toLowerCase().includes('barre');
-                            if (match && match[1] === match[2] && parseInt(match[1]) > 0 && cls.title !== "Private Class" && !isMatOrBarre && !cls.isCancelled) {
+                            if (category !== 'Private Sessions' && canBookPrivately(cls)) {
                               return (
                                 <Link 
                                   to="/checkout"
-                                  state={{
-                                    title: "Private Class",
-                                    instructor: cls.instructor,
-                                    time: cls.time,
-                                    isWaitlist: false,
-                                    slotsLeft: 1
-                                  }}
+                                  state={checkoutPrivateState(cls)}
                                   className="text-[11px] text-center text-brand-beige/80 hover:text-white font-medium underline underline-offset-2 transition-colors w-full block mt-1"
                                 >
                                   Book as Private Class

@@ -7,6 +7,7 @@ import * as bookingsRepo from './bookingsRepo.js';
 import * as coachesRepo from './coachesRepo.js';
 import * as usersRepo from './usersRepo.js';
 import * as packagesRepo from './packagesRepo.js';
+import * as settingsRepo from './settingsRepo.js';
 import { PACKAGES, findPackage, creditTypesForClass } from './packagesCatalog.js';
 import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated } from './mailer.js';
 
@@ -18,7 +19,24 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .filter(Boolean);
 
 app.use(cors({ origin: allowedOrigins }));
-app.use(express.json({ limit: '100kb' }));
+// Most requests are tiny. The few that can carry an image (a payment receipt,
+// or the studio's QR codes) get a larger allowance; images are shrunk in the
+// browser before they are sent.
+const smallJson = express.json({ limit: '100kb' });
+const imageJson = express.json({ limit: '3mb' });
+const IMAGE_ROUTES = ['/api/bookings', '/api/me/packages', '/api/settings/payment'];
+app.use((req, res, next) => (IMAGE_ROUTES.includes(req.path) ? imageJson : smallJson)(req, res, next));
+
+// An optional image sent as a data: URL. Returns { image } (null when absent)
+// or { error }.
+const IMAGE_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+function parseImage(value, label) {
+  if (value === undefined || value === null || value === '') return { image: null };
+  if (typeof value !== 'string' || value.length > 1_500_000 || !IMAGE_DATA_URL.test(value)) {
+    return { error: `${label} must be a PNG, JPEG or WebP image under 1 MB` };
+  }
+  return { image: value };
+}
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL);
 
@@ -305,18 +323,20 @@ async function bookWithPackage(req, res, body) {
   const classId = Number(body.classId);
   if (!Number.isInteger(purchaseId) || purchaseId < 1) return res.status(400).json({ error: 'Please choose a package' });
   if (!Number.isInteger(classId) || classId < 1) return res.status(400).json({ error: 'classId is required' });
-  if (!Number.isInteger(body.spot) || body.spot < 1) return res.status(400).json({ error: 'Please select a spot' });
+  const isPrivate = body.private === true;
+  if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) return res.status(400).json({ error: 'Please select a spot' });
 
   const cls = await classesRepo.getById(pool, classId);
   if (!cls) return res.status(409).json({ error: 'This class can no longer be booked.' });
-  const creditTypes = creditTypesForClass(cls.title);
+  const creditTypes = isPrivate ? ['private'] : creditTypesForClass(cls.title);
   if (creditTypes.length === 0) return res.status(400).json({ error: 'This class cannot be booked with a package online.' });
 
   const profile = await usersRepo.upsert(pool, { email: session.email, name: body.clientName });
   const clientName = (typeof body.clientName === 'string' && body.clientName.trim()) || profile.name || session.email;
 
   const { bookingId, problem } = await packagesRepo.bookWithCredit(pool, {
-    purchaseId, email: session.email, classId, spot: body.spot, clientName: clientName.slice(0, 100), creditTypes,
+    purchaseId, email: session.email, classId, spot: isPrivate ? 1 : body.spot, clientName: clientName.slice(0, 100),
+    creditTypes, isPrivate,
   });
   if (problem === 'no-package') return res.status(409).json({ error: 'That package is not active, or has expired.' });
   if (problem === 'no-credit') return res.status(409).json({ error: 'That package has no credits left for this class.' });
@@ -353,15 +373,20 @@ app.post('/api/bookings', async (req, res, next) => {
     if (!EMAIL.test(clientEmail) || clientEmail.length > 254) {
       return res.status(400).json({ error: 'Please enter a valid email address' });
     }
-    if (!Number.isInteger(body.spot) || body.spot < 1) {
+    // A private session takes the whole room, so there is no spot to choose.
+    const isPrivate = body.private === true;
+    if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) {
       return res.status(400).json({ error: 'Please select a spot' });
     }
     if (referenceId.length > 60 || amount.length > 20) {
       return res.status(400).json({ error: 'Reference number or amount is too long' });
     }
+    const receipt = parseImage(body.receipt, 'The receipt');
+    if (receipt.error) return res.status(400).json({ error: receipt.error });
 
     const { booking, problem } = await bookingsRepo.create(pool, {
-      classId, clientName, clientEmail, spot: body.spot, referenceId, amount,
+      classId, clientName, clientEmail, spot: isPrivate ? 1 : body.spot, referenceId, amount,
+      isPrivate, receipt: receipt.image,
     });
     if (problem === 'spot-taken') {
       return res.status(409).json({ error: 'That spot was just taken. Please choose another one.' });
@@ -614,8 +639,10 @@ app.post('/api/me/packages', requireUser, async (req, res, next) => {
     if (!referenceId || referenceId.length > 60) {
       return res.status(400).json({ error: 'Please enter the reference number from your payment' });
     }
+    const receipt = parseImage(req.body?.receipt, 'The receipt');
+    if (receipt.error) return res.status(400).json({ error: receipt.error });
     await usersRepo.upsert(pool, { email: req.userEmail });
-    res.status(201).json(await packagesRepo.create(pool, req.userEmail, pkg, referenceId));
+    res.status(201).json(await packagesRepo.create(pool, req.userEmail, pkg, referenceId, receipt.image));
   } catch (error) {
     next(error);
   }
@@ -647,6 +674,96 @@ app.patch('/api/package-purchases/:id', requireAdmin, async (req, res, next) => 
       }
     }
     res.json(purchase);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Receipt images are fetched one at a time when the admin opens a booking or
+// purchase, so the lists stay small.
+app.get('/api/bookings/:id/receipt', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const receipt = await bookingsRepo.getReceipt(pool, Number(req.params.id));
+    if (receipt === undefined) return res.status(404).json({ error: 'Booking not found' });
+    res.json({ receipt });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/package-purchases/:id/receipt', requireAdmin, async (req, res, next) => {
+  try {
+    if (!/^\d{1,9}$/.test(req.params.id)) return res.status(404).json({ error: 'Purchase not found' });
+    const receipt = await packagesRepo.getReceipt(pool, Number(req.params.id));
+    if (receipt === undefined) return res.status(404).json({ error: 'Purchase not found' });
+    res.json({ receipt });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The payment accounts shown at checkout. Anyone can read them; only the
+// admin can change them.
+app.get('/api/settings/payment', async (req, res, next) => {
+  try {
+    res.json({ payment: await settingsRepo.getPayment(pool) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/settings/payment', requireAdmin, async (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    const payment = {};
+    for (const [key, label, max] of [
+      ['bpiName', 'BPI account name', 100], ['bpiNumber', 'BPI account number', 40],
+      ['gcashName', 'GCash account name', 100], ['gcashNumber', 'GCash number', 40],
+    ]) {
+      const value = typeof body[key] === 'string' ? body[key].trim() : '';
+      if (!value || value.length > max) return res.status(400).json({ error: `Please enter the ${label}` });
+      payment[key] = value;
+    }
+    for (const [key, label] of [['bpiQr', 'The BPI QR code'], ['gcashQr', 'The GCash QR code']]) {
+      const { image, error } = parseImage(body[key], label);
+      if (error) return res.status(400).json({ error });
+      payment[key] = image ?? '';
+    }
+    res.json({ payment: await settingsRepo.setPayment(pool, payment) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Newsletter sign-up from the home page.
+app.post('/api/newsletter', async (req, res, next) => {
+  try {
+    const firstName = typeof req.body?.firstName === 'string' ? req.body.firstName.trim() : '';
+    const lastName = typeof req.body?.lastName === 'string' ? req.body.lastName.trim() : '';
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!firstName || !lastName || `${firstName} ${lastName}`.length > 100) {
+      return res.status(400).json({ error: 'Please enter your first and last name' });
+    }
+    if (!EMAIL.test(email) || email.length > 254) return res.status(400).json({ error: 'Please enter a valid email address' });
+    await usersRepo.subscribe(pool, { email, name: `${firstName} ${lastName}` });
+    res.status(201).json({ message: "You're on the list!" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// One client's details for the admin's Client Directory.
+app.get('/api/users/:email', requireAdmin, async (req, res, next) => {
+  try {
+    const email = String(req.params.email).toLowerCase();
+    const profile = await usersRepo.getProfile(pool, email);
+    if (!profile) return res.status(404).json({ error: 'Client not found' });
+    res.json({
+      profile,
+      bookings: await bookingsRepo.getForClient(pool, email),
+      packages: await packagesRepo.getForClient(pool, email),
+    });
   } catch (error) {
     next(error);
   }

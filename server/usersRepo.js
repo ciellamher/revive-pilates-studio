@@ -61,6 +61,13 @@ export async function updateProfile(pool, email, input) {
   return result.rows[0] ? toProfile(result.rows[0]) : null
 }
 
+// Newsletter sign-up: creates the account if needed, fills in a missing name,
+// and switches promotional emails on.
+export async function subscribe(pool, { email, name }) {
+  await upsert(pool, { email, name })
+  await pool.query('UPDATE users SET email_promotions = true WHERE email = $1', [email])
+}
+
 // The admin's Client Directory: every account with how many bookings it has
 // that were not rejected.
 export async function getDirectory(pool) {

@@ -35,8 +35,8 @@ export default function PilatesPrivateSessionSection() {
                 One-on-one and semi-private sessions tailored to your body, goals, and rhythm. Includes 50-minute workout using Pilates equipment such as the Reformer, Tower, and Chair.
               </p>
               
-              <Link to="mailto:reserve@revivestudio.com" className="border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-6 py-2 text-[12px] font-medium transition-colors w-fit">
-                email to reserve
+              <Link to="/book?category=private" className="border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-6 py-2 text-[12px] font-medium transition-colors w-fit">
+                book a private session
               </Link>
             </div>
 

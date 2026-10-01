@@ -25,7 +25,8 @@ export default function Checkout() {
     duration = '55 mins',
     branch = 'Angeles',
     capacity,
-    takenSpots = []
+    takenSpots = [],
+    isPrivate = false
   } = location.state || {};
 
   // Signed-in clients start with their own details; they can still change them.
@@ -34,6 +35,7 @@ export default function Checkout() {
   const [attendeeEmail, setAttendeeEmail] = useState(user?.email ?? '');
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [referenceId, setReferenceId] = useState('');
+  const [receipt, setReceipt] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [booking, setBooking] = useState(null);
@@ -43,7 +45,8 @@ export default function Checkout() {
   const [selectedPackageId, setSelectedPackageId] = useState(null);
   const [packageError, setPackageError] = useState('');
   const [usingCredit, setUsingCredit] = useState(false);
-  const classCreditTypes = creditTypesForClass(title);
+  // A private session is paid with a private credit, a group class with one of its kind.
+  const classCreditTypes = isPrivate ? ['private'] : creditTypesForClass(title);
   const creditsLeftFor = (purchase) => classCreditTypes.reduce((sum, type) => sum + (purchase.credits[type]?.left ?? 0), 0);
 
   useEffect(() => {
@@ -62,14 +65,14 @@ export default function Checkout() {
 
   const handleUseCredit = async () => {
     if (!classId) return setPackageError('Please choose a class from the timetable first.');
-    if (!selectedSpot) return setPackageError('Please select your spot.');
+    if (!isPrivate && !selectedSpot) return setPackageError('Please select your spot.');
     if (!selectedPackageId) return setPackageError('Please choose a package.');
     setUsingCredit(true);
     setPackageError('');
     try {
       const res = await apiFetch('/api/bookings', {
         method: 'POST',
-        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, clientName: attendeeName })
+        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, private: isPrivate, clientName: attendeeName })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Something went wrong. Please try again.');
@@ -115,7 +118,7 @@ export default function Checkout() {
     if (!classId) return setSubmitError('Please choose a class from the timetable first.');
     if (!attendeeName.trim()) return setSubmitError('Please enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(attendeeEmail.trim())) return setSubmitError('Please enter a valid email address.');
-    if (!selectedSpot) return setSubmitError('Please select your spot.');
+    if (!isPrivate && !selectedSpot) return setSubmitError('Please select your spot.');
 
     setSubmitting(true);
     setSubmitError('');
@@ -128,7 +131,9 @@ export default function Checkout() {
           clientName: attendeeName,
           clientEmail: attendeeEmail,
           spot: selectedSpot,
+          private: isPrivate,
           referenceId,
+          receipt,
           amount: `₱ ${price}`
         })
       });
@@ -165,12 +170,12 @@ export default function Checkout() {
               <h2 className="text-2xl font-serif font-bold text-brand-dark mb-3">Booking received</h2>
               {booking.status === 'confirmed' ? (
                 <p className="text-brand-dark/80 mb-6">
-                  You're booked, {booking.clientName}: spot {booking.spot} in {booking.className}, paid with 1 package credit. We've emailed your confirmation and will send a reminder about 12 hours before class.
+                  You're booked, {booking.clientName}: {booking.isPrivate ? `a private session (${booking.className})` : `spot ${booking.spot} in ${booking.className}`}, paid with 1 package credit. We've emailed your confirmation and will send a reminder about 12 hours before class.
                 </p>
               ) : (
                 <>
                   <p className="text-brand-dark/80 mb-2">
-                    Thanks, {booking.clientName}. Spot {booking.spot} in {booking.className} is held for you while the studio verifies your payment.
+                    Thanks, {booking.clientName}. {booking.isPrivate ? `Your private session (${booking.className})` : `Spot ${booking.spot} in ${booking.className}`} is held for you while the studio verifies your payment.
                   </p>
                   <p className="text-brand-dark/80 mb-6">
                     Once it is confirmed, we will email a reminder to <strong className="text-brand-dark">{attendeeEmail.trim()}</strong> about 12 hours before your class.
@@ -219,7 +224,12 @@ export default function Checkout() {
 
             {/* Spot Selector */}
             <section>
-              <h2 className="text-lg font-bold text-brand-dark mb-4">Select your Spot</h2>
+              <h2 className="text-lg font-bold text-brand-dark mb-4">{isPrivate ? 'Your session' : 'Select your Spot'}</h2>
+              {isPrivate ? (
+                <div className="border border-brand-sand/50 rounded-xl p-5 bg-white shadow-sm text-sm text-brand-dark/80">
+                  This is a private session: the whole room and your coach are booked just for you, so there is no spot to pick.
+                </div>
+              ) : (
               <SpotSelectorMap
                 classType={classType}
                 spotCount={capacity}
@@ -227,6 +237,7 @@ export default function Checkout() {
                 selectedSpot={selectedSpot}
                 onSelectSpot={setSelectedSpot}
               />
+              )}
             </section>
 
             {/* Pricing Option */}
@@ -253,6 +264,8 @@ export default function Checkout() {
                 <PaymentUploadPanel
                   referenceId={referenceId}
                   onReferenceChange={setReferenceId}
+                  receipt={receipt}
+                  onReceiptChange={setReceipt}
                   onSubmit={handleSubmitBooking}
                   submitting={submitting}
                   error={submitError}
@@ -434,16 +447,10 @@ export default function Checkout() {
                   <div className="text-center">
                     <p className="text-sm font-bold text-brand-dark">{slotsLeft} {slotsLeft === 1 ? 'slot' : 'slots'} left</p>
                     
-                    {classType === 'reformer' && slotsLeft === 4 && title !== 'Private Class' && (
+                    {classId && !isPrivate && classType === 'reformer' && takenSpots.length === 0 && (
                       <Link 
                         to="/checkout"
-                        state={{
-                          title: "Private Class",
-                          instructor: instructor,
-                          time: time,
-                          isWaitlist: false,
-                          slotsLeft: 1
-                        }}
+                        state={{ ...location.state, title: 'Private Class', isPrivate: true, isWaitlist: false, slotsLeft: 1 }}
                         className="inline-block text-xs font-bold text-brand-brown hover:text-brand-dark underline underline-offset-2 mt-3 transition-colors"
                       >
                         Want to book this as a Private Class?

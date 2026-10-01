@@ -6,16 +6,22 @@
 // on a server that is not in the studio's timezone.
 //
 // taken_spots is the spot numbers already held in this class. A rejected or
-// cancelled booking does not hold its spot.
+// cancelled booking does not hold its spot; an active private booking holds
+// all of them.
 const COLUMNS = `
   id, title, to_char(class_date, 'YYYY-MM-DD') AS date, start_time,
   duration_min, coach_id, branch, capacity, is_cancelled,
   (SELECT name FROM coaches WHERE id = classes.coach_id) AS instructor,
-  ARRAY(
+  CASE WHEN EXISTS (
+    SELECT 1 FROM bookings
+    WHERE class_id = classes.id AND is_private AND status NOT IN ('rejected', 'cancelled')
+  )
+  THEN ARRAY(SELECT generate_series(1, capacity))
+  ELSE ARRAY(
     SELECT spot FROM bookings
     WHERE class_id = classes.id AND status NOT IN ('rejected', 'cancelled')
     ORDER BY spot
-  ) AS taken_spots`
+  ) END AS taken_spots`
 
 // The shape the React client already works with.
 function toClass(row) {

@@ -13,6 +13,7 @@ export default function BuyPackage() {
   const { packageId } = useParams();
   const [pkg, setPkg] = useState(undefined); // undefined = loading, null = not found
   const [referenceId, setReferenceId] = useState('');
+  const [receipt, setReceipt] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [purchase, setPurchase] = useState(null);
@@ -31,7 +32,7 @@ export default function BuyPackage() {
     try {
       const res = await apiFetch('/api/me/packages', {
         method: 'POST',
-        body: JSON.stringify({ packageId, referenceId }),
+        body: JSON.stringify({ packageId, referenceId, receipt }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Something went wrong. Please try again.');
@@ -107,6 +108,8 @@ export default function BuyPackage() {
                     <PaymentUploadPanel
                       referenceId={referenceId}
                       onReferenceChange={setReferenceId}
+                      receipt={receipt}
+                      onReceiptChange={setReceipt}
                       onSubmit={handleSubmit}
                       submitting={submitting}
                       error={error}

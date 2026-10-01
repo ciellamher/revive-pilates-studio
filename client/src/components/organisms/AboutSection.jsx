@@ -24,10 +24,10 @@ export default function AboutSection() {
           </p>
           
           <div className="flex flex-wrap gap-4">
-            <Link to="/book" className="px-8 py-3 rounded-full border border-brand-brown text-brand-brown font-medium hover:bg-brand-brown hover:text-brand-beige transition-colors">
+            <Link to="/book?category=group" className="px-8 py-3 rounded-full border border-brand-brown text-brand-brown font-medium hover:bg-brand-brown hover:text-brand-beige transition-colors">
               Group Classes
             </Link>
-            <Link to="/book" className="px-8 py-3 rounded-full border border-brand-brown text-brand-brown font-medium hover:bg-brand-brown hover:text-brand-beige transition-colors">
+            <Link to="/book?category=private" className="px-8 py-3 rounded-full border border-brand-brown text-brand-brown font-medium hover:bg-brand-brown hover:text-brand-beige transition-colors">
               Private Sessions
             </Link>
           </div>
