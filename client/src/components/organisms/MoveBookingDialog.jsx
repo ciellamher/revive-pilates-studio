@@ -36,7 +36,7 @@ export default function MoveBookingDialog({ booking, fromClass, onClose, onMoved
     .filter(c => c.id !== fromClass.id && !c.isCancelled && !c.isDone)
     .filter(c => bothBranches || c.branch === fromClass.branch)
     // A private session needs a Reformer class nobody else has booked.
-    .filter(c => (booking.isPrivate ? c.title.toLowerCase().includes('reformer') && (c.takenSpots?.length ?? 0) === 0 : spotsLeft(c) > 0))
+    .filter(c => (booking.isPrivate ? c.title.toLowerCase().includes('reformer') && c.allowPrivate !== false && (c.takenSpots?.length ?? 0) === 0 : spotsLeft(c) > 0))
     .sort((a, b) => a.date.localeCompare(b.date) || (labelToMinutes(a.time) ?? 0) - (labelToMinutes(b.time) ?? 0)),
   [classes, bothBranches, fromClass, booking.isPrivate]);
 

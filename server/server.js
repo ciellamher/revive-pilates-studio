@@ -263,6 +263,13 @@ function parseClassInput(body, { requireAll }) {
     }
     input.isCancelled = body.isCancelled;
   }
+  // Whether a Reformer class can be booked whole as a private session.
+  if (has('allowPrivate')) {
+    if (typeof body.allowPrivate !== 'boolean') {
+      return { error: 'allowPrivate must be true or false' };
+    }
+    input.allowPrivate = body.allowPrivate;
+  }
   return { input };
 }
 
@@ -389,6 +396,10 @@ function parseGuests(body, privateKind, bookerEmail) {
   return { guestNames, guestEmails };
 }
 
+// A group Reformer class the admin made group-only cannot be taken whole.
+const groupOnly = (cls, isPrivate) => isPrivate && cls.allowPrivate === false && !/private|clinical/i.test(cls.title);
+const GROUP_ONLY_ERROR = 'This class is a group class only. Please book a spot, or choose a private session.';
+
 // Dry needling is an optional extra for a clinical session.
 const wantsDryNeedling = (body, privateKind) => privateKind === 'clinical' && body.dryNeedling === true;
 
@@ -405,6 +416,7 @@ async function bookWithPackage(req, res, body) {
   const cls = await classesRepo.getById(pool, classId);
   if (!cls) return res.status(409).json({ error: 'This class can no longer be booked.' });
   const { isPrivate, privateKind } = privateBookingOf(body, cls);
+  if (groupOnly(cls, isPrivate)) return res.status(409).json({ error: GROUP_ONLY_ERROR });
   if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) return res.status(400).json({ error: 'Please select a spot' });
   const creditTypes = creditTypesForClass(cls.title, privateKind);
   const guests = parseGuests(body, privateKind, session.email);
@@ -462,6 +474,7 @@ app.post('/api/bookings', requireUser, async (req, res, next) => {
     // A private session takes the whole room, so there is no spot to choose.
     const cls = Number.isInteger(classId) && classId > 0 ? await classesRepo.getById(pool, classId) : null;
     const { isPrivate, privateKind } = cls ? privateBookingOf(body, cls) : { isPrivate: body.private === true, privateKind: 'solo' };
+    if (cls && groupOnly(cls, isPrivate)) return res.status(409).json({ error: GROUP_ONLY_ERROR });
     if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) {
       return res.status(400).json({ error: 'Please select a spot' });
     }

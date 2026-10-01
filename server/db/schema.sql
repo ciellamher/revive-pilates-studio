@@ -199,3 +199,7 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS dry_needling BOOLEAN NOT NULL DEFA
 ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS shared_with TEXT[] NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS user_packages_shared_with_idx ON user_packages USING GIN (shared_with);
 CREATE INDEX IF NOT EXISTS bookings_guest_emails_idx ON bookings USING GIN (guest_emails);
+
+-- Reformer classes can be booked whole as a private session unless the admin
+-- switches it off for that class.
+ALTER TABLE classes ADD COLUMN IF NOT EXISTS allow_private BOOLEAN NOT NULL DEFAULT true;

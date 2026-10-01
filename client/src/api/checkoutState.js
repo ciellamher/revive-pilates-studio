@@ -16,6 +16,7 @@ export function checkoutClassState(cls) {
     duration: cls.duration,
     branch: cls.branch,
     capacity: cls.capacity,
+    allowPrivate: cls.allowPrivate !== false,
     takenSpots,
     isPrivate,
     privateKind: isPrivate ? privateKindOf(cls.title) : null,
@@ -45,8 +46,10 @@ export function checkoutPrivateState(cls, kind = 'solo') {
   }
 }
 
-// An empty Reformer class can be taken whole as a private session.
+// An empty Reformer class can be taken whole as a private session, unless the
+// admin made it group-only.
 export const canBookPrivately = (cls, kind = 'solo') =>
+  cls.allowPrivate !== false &&
   !cls.isCancelled && !cls.isDone && (cls.takenSpots?.length ?? 0) === 0 &&
   cls.title.toLowerCase().includes('reformer') && cls.capacity >= privateKind(kind).capacity
 

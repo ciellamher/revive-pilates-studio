@@ -9,7 +9,7 @@ import AdminClientProfile from '../components/organisms/AdminClientProfile';
 import AdminClassRoster from '../components/organisms/AdminClassRoster';
 import { apiFetch } from '../api/base';
 import { useNotify } from '../components/Notifications';
-import { GROUP_CLASS_TYPES, DEFAULT_CAPACITY, PRIVATE_FILTER, PRIVATE_SESSION_CAPACITY, isPrivateType } from '../api/classTypes';
+import { GROUP_CLASS_TYPES, DEFAULT_CAPACITY, isPrivateType } from '../api/classTypes';
 import { DAY_START, DAY_END, hourLabels, labelToMinutes, minutesToLabel, parseTimeInput, durationOf } from '../api/time';
 
 // A time box: type any time, or pick a whole hour from the suggestions.
@@ -81,7 +81,8 @@ export default function AdminDashboard() {
   const [classTypeTitle, setClassTypeTitle] = useState('Reformer Flow');
   // A class is a group class unless "Private session" is ticked; then it is
   // booked whole by one client, for one, two or three people.
-  const [isPrivateClass, setIsPrivateClass] = useState(false);
+  // Reformer classes can be booked whole as a private session unless unticked.
+  const [allowPrivate, setAllowPrivate] = useState(true);
   const [experienceLevel, setExperienceLevel] = useState('Beginner');
   const [modalStartTime, setModalStartTime] = useState('08:00 AM');
   const [modalEndTime, setModalEndTime] = useState('09:00 AM');
@@ -518,7 +519,7 @@ export default function AdminDashboard() {
                 setEditingClass(null);
                 setPrefilledClassData(null);
                 setClassTypeTitle('Reformer Flow');
-                setIsPrivateClass(false);
+                setAllowPrivate(true);
                 setCapacity(DEFAULT_CAPACITY['Reformer Flow']);
                 setCoachId(branchCoaches[0]?.id ?? '');
                 setClassFormError('');
@@ -543,8 +544,8 @@ export default function AdminDashboard() {
             onClassClick={(cls) => {
               setEditingClass(cls);
               setPrefilledClassData(null);
-              setIsPrivateClass(isPrivateType(cls.title));
-              setClassTypeTitle(isPrivateType(cls.title) ? 'Reformer Flow' : (cls.title || 'Reformer Flow'));
+              setAllowPrivate(cls.allowPrivate !== false);
+              setClassTypeTitle(cls.title || 'Reformer Flow');
               setCapacity(cls.capacity ?? DEFAULT_CAPACITY[cls.title] ?? DEFAULT_CAPACITY['Reformer Flow']);
               setCoachId(cls.coachId);
               setClassFormError('');
@@ -556,7 +557,7 @@ export default function AdminDashboard() {
             onEmptySlotClick={(dateId, time) => {
               setEditingClass(null);
               setClassTypeTitle('Reformer Flow');
-              setIsPrivateClass(false);
+              setAllowPrivate(true);
               setCapacity(DEFAULT_CAPACITY['Reformer Flow']);
               setCoachId(branchCoaches[0]?.id ?? '');
               setClassFormError('');
@@ -889,7 +890,8 @@ export default function AdminDashboard() {
               const localDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
               
               const newClass = {
-                title: isPrivateClass ? PRIVATE_FILTER : classTypeTitle,
+                title: classTypeTitle,
+                allowPrivate,
                 time: timeStr,
                 date: formData.get('date'),
                 dateId: localDate.toDateString(),
@@ -936,34 +938,36 @@ export default function AdminDashboard() {
               <div className="space-y-5">
                   <div>
                     <label className="block text-xs font-bold text-brand-dark/50 uppercase tracking-wider mb-2">Class Name</label>
-                    <div className={`bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-40 relative ${isPrivateClass ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <div className={`bg-white border border-brand-sand/50 rounded-lg focus-within:border-brand-brown z-40 relative `}>
                       <CustomDropdown
                         value={classTypeTitle}
                         onChange={(title) => {
                           setClassTypeTitle(title);
                           setCapacity(DEFAULT_CAPACITY[title] ?? 1);
                         }}
-                        options={GROUP_CLASS_TYPES}
+                        // A class made before as a private session keeps its own title.
+                        options={isPrivateType(classTypeTitle) ? [...GROUP_CLASS_TYPES, classTypeTitle] : GROUP_CLASS_TYPES}
                         triggerClassName="px-4 py-3"
                       />
                     </div>
 
-                    <label className="mt-3 flex items-center gap-2 text-sm font-medium text-brand-dark cursor-pointer w-fit">
-                      <input
-                        type="checkbox"
-                        checked={isPrivateClass}
-                        onChange={(e) => {
-                          setIsPrivateClass(e.target.checked);
-                          setCapacity(e.target.checked ? PRIVATE_SESSION_CAPACITY : (DEFAULT_CAPACITY[classTypeTitle] ?? 1));
-                        }}
-                        className="w-4 h-4 accent-[#3A2A20]"
-                      />
-                      Private session
-                    </label>
-                    {isPrivateClass && (
-                      <p className="mt-2 text-xs text-brand-dark/50">
-                        Shown to clients as "Private Session" and booked whole by one client, who chooses Private, Duo, Trio or Clinical when booking.
-                      </p>
+                    {classTypeTitle.toLowerCase().includes('reformer') && (
+                      <>
+                        <label className="mt-3 flex items-center gap-2 text-sm font-medium text-brand-dark cursor-pointer w-fit">
+                          <input
+                            type="checkbox"
+                            checked={allowPrivate}
+                            onChange={(e) => setAllowPrivate(e.target.checked)}
+                            className="w-4 h-4 accent-[#3A2A20]"
+                          />
+                          Can be booked as a private session
+                        </label>
+                        <p className="mt-2 text-xs text-brand-dark/50">
+                          {allowPrivate
+                            ? 'Until someone books a spot, a client can take the whole class as Private, Duo, Trio or Clinical. Untick to keep it a group class only.'
+                            : 'Group class only: clients book single spots.'}
+                        </p>
+                      </>
                     )}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

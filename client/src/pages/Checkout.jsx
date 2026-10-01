@@ -54,6 +54,7 @@ export default function Checkout() {
     isPrivate = false,
     privateKind: startingKind = null,
     classTitle = title,
+    allowPrivate = true,
   } = checkoutState || {};
 
   // A private session that is not fixed to one kind (a Reformer class taken
@@ -647,7 +648,7 @@ export default function Checkout() {
                   <div className="text-center">
                     <p className="text-sm font-bold text-brand-dark">{slotsLeft} {slotsLeft === 1 ? 'slot' : 'slots'} left</p>
                     
-                    {classId && !isPrivate && classType === 'reformer' && takenSpots.length === 0 && (
+                    {classId && !isPrivate && allowPrivate && classType === 'reformer' && takenSpots.length === 0 && (
                       <Link 
                         to="/checkout"
                         state={{ ...checkoutState, classTitle, title: kindInfo('solo').title, isPrivate: true, privateKind: 'solo', isWaitlist: false, slotsLeft: 1 }}

@@ -71,8 +71,9 @@ export async function getAll(pool) {
 }
 
 // The conditions a class must meet to take a new booking. A private booking
-// needs a Reformer class nobody has booked yet; any booking needs the class
-// not to be held privately already.
+// needs a private class, or a Reformer class that allows it (allow_private),
+// nobody has booked yet; any booking needs the class not to be held privately
+// already.
 export const BOOKABLE = (spotParam, privateParam) => `
   c.id = $1
   AND NOT c.is_cancelled
@@ -83,7 +84,7 @@ export const BOOKABLE = (spotParam, privateParam) => `
     WHERE x.class_id = c.id AND x.status NOT IN ('rejected', 'cancelled')
       AND (x.is_private OR ${privateParam})
   )
-  AND (NOT ${privateParam} OR c.title ~* '(reformer|private|clinical)')`
+  AND (NOT ${privateParam} OR c.title ~* '(private|clinical)' OR (c.title ~* 'reformer' AND c.allow_private))`
 
 // Returns { booking } on success, or { problem } naming why it was refused.
 // The checks and the insert are one statement, so a class cannot be cancelled
