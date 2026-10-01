@@ -32,8 +32,8 @@ flowchart LR
     I["Client inbox<br/>sign-in link · confirmations<br/>reminder 12 h before class"]
 
     B -- "loads pages" --> S
-    B <-- "HTTPS + JSON" --> A
-    A <-- "SQL" --> D
+    B <-->|"HTTPS + JSON"| A
+    A <-->|"SQL"| D
     A -- "sends" --> G
     G -- "email" --> I
     I -. "sign-in link opens the site" .-> B
