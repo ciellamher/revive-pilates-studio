@@ -9,11 +9,11 @@ Every page talks to one Express API. Only the API touches the database and
 sends email.
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"fontFamily": "-apple-system, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "15px", "primaryColor": "#FBF8F3", "primaryBorderColor": "#E4D9CA", "primaryTextColor": "#2A1D15", "lineColor": "#9C8B7C", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 40, "rankSpacing": 70, "padding": 20}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#FBF8F3", "primaryBorderColor": "#E4D9CA", "primaryTextColor": "#2A1D15", "lineColor": "#9C8B7C", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 40, "rankSpacing": 70, "padding": 20}}}%%
 flowchart LR
     B("<b>Browser</b><br/>React 19 · Vite<br/>Tailwind CSS")
     A("<b>Express API</b><br/>on Vercel")
-    D[("<b>PostgreSQL</b><br/>Neon · Singapore")]
+    D[("<b>PostgreSQL</b><br/>Neon<br/>Singapore")]
     C("<b>GitHub Actions</b><br/>every 30 min")
     G("<b>Gmail</b><br/>Nodemailer")
     I("<b>Client inbox</b>")
@@ -46,7 +46,7 @@ flowchart LR
 ## A booking, start to finish
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"fontFamily": "-apple-system, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "15px", "primaryColor": "#FBF8F3", "primaryBorderColor": "#E4D9CA", "primaryTextColor": "#2A1D15", "lineColor": "#9C8B7C", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 34, "rankSpacing": 40, "padding": 16}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#FBF8F3", "primaryBorderColor": "#E4D9CA", "primaryTextColor": "#2A1D15", "lineColor": "#9C8B7C", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 34, "rankSpacing": 40, "padding": 16}}}%%
 flowchart TD
     A(["Pick a class"]) --> B{{"Group or private?"}}
     B -->|Group| C("Choose a spot")
