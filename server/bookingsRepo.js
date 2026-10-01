@@ -285,7 +285,12 @@ async function rollback(client, problem) {
   return { problem }
 }
 
-// Everyone who should hear that a class was cancelled.
+// After a class moves, its bookings need a reminder for the new time.
+export async function resetRemindersForClass(pool, classId) {
+  await pool.query('UPDATE bookings SET reminder_sent_at = NULL WHERE class_id = $1', [classId])
+}
+
+// Everyone who should hear that a class was cancelled or rescheduled.
 export async function getRecipientsForClass(pool, classId) {
   const result = await pool.query(
     `SELECT ${BOOKING_WITH_CLASS}

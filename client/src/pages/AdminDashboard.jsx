@@ -821,6 +821,17 @@ export default function AdminDashboard() {
               }
               const timeStr = minutesToLabel(sMins);
 
+              // Changing the day, time or length of a class people booked
+              // emails them, so ask first.
+              if (editingClass && (editingClass.takenSpots?.length ?? 0) > 0) {
+                const changedSchedule = formData.get('date') !== editingClass.date
+                  || timeStr !== editingClass.time
+                  || durationMins !== durationOf(editingClass);
+                if (changedSchedule && !window.confirm(`Change the schedule of ${editingClass.title}?\n\nClients already booked in this class will be emailed the new time.`)) {
+                  return;
+                }
+              }
+
               if (!coachId) {
                 setClassFormError(`Add a coach for the ${branchName} branch first, under Coaches.`);
                 return;
@@ -854,7 +865,10 @@ export default function AdminDashboard() {
                   method,
                   body: JSON.stringify(newClass)
                 });
-                if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Request failed');
+                const saved = await res.json().catch(() => null);
+                if (!res.ok) throw new Error(saved?.error || 'Request failed');
+                if (saved?.notified) window.alert(`Saved. ${saved.notified} booked ${saved.notified === 1 ? 'client was' : 'clients were'} emailed the new time.`);
+                if (saved?.notifyFailed) window.alert(`${saved.notifyFailed} email${saved.notifyFailed === 1 ? '' : 's'} could not be sent. Please tell those clients yourself.`);
                 setIsClassModalOpen(false);
                 setRefreshKey(prev => prev + 1);
               } catch (error) {

@@ -10,7 +10,7 @@ import * as packagesRepo from './packagesRepo.js';
 import * as settingsRepo from './settingsRepo.js';
 import { allow, clientIp } from './rateLimit.js';
 import { PACKAGES, findPackage, creditTypesForClass } from './packagesCatalog.js';
-import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, sendBookingCancelled, sendBookingMoved, MAIL_MODE } from './mailer.js';
+import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, sendBookingCancelled, sendBookingMoved, sendClassRescheduled, MAIL_MODE } from './mailer.js';
 
 const app = express();
 
@@ -313,13 +313,26 @@ app.patch('/api/classes/:id', requireAdmin, async (req, res, next) => {
     // Tell everyone who booked, but only on the change from open to cancelled.
     // The cancellation itself is already saved: a mail failure is logged and
     // reported in `notified`, it does not undo the cancel.
-    if (!before.isCancelled && updated.isCancelled) {
+    // Tell everyone booked when the class is cancelled, or when its day, time
+    // or length changes (rescheduled, including by dragging on the calendar).
+    const rescheduled = !updated.isCancelled && (
+      before.date !== updated.date || before.time !== updated.time || before.duration !== updated.duration
+    );
+    let notify = null;
+    if (!before.isCancelled && updated.isCancelled) notify = sendCancellation;
+    else if (rescheduled) {
+      // Reminders already sent were for the old time; send fresh ones.
+      await bookingsRepo.resetRemindersForClass(pool, id);
+      notify = (recipient) => sendClassRescheduled(recipient, before);
+    }
+    if (notify) {
       const recipients = await bookingsRepo.getRecipientsForClass(pool, id);
-      const results = await Promise.allSettled(recipients.map(sendCancellation));
+      const results = await Promise.allSettled(recipients.map(notify));
       results.forEach((result) => {
-        if (result.status === 'rejected') console.error('Cancellation email failed:', result.reason.message);
+        if (result.status === 'rejected') console.error('Class change email failed:', result.reason.message);
       });
       updated.notified = results.filter((result) => result.status === 'fulfilled').length;
+      updated.notifyFailed = results.length - updated.notified;
     }
     res.json(updated);
   } catch (error) {

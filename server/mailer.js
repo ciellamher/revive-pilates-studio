@@ -170,6 +170,18 @@ export function sendBookingMoved(recipient, from) {
   })
 }
 
+// `before` is the class as it was: { title, date, time, duration }.
+export function sendClassRescheduled(recipient, before) {
+  return sendMail({
+    to: recipient.email,
+    subject: `Class rescheduled: ${recipient.title} is now ${formatDate(recipient.date)} at ${recipient.time}`,
+    html: layout('Your class has a new time', `
+      <p>Hi ${escapeHtml(recipient.name)}, the studio has changed the schedule for a class you booked. It was on ${formatDate(before.date)} at ${escapeHtml(before.time)} (${escapeHtml(before.duration)}). It is now:</p>
+      ${classDetails(recipient)}
+      <p>Your spot is kept. If the new time does not work for you, please reply to this email or message the studio.</p>`),
+  })
+}
+
 export function sendCancellation(recipient) {
   return sendMail({
     to: recipient.email,

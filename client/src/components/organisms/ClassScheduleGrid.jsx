@@ -192,6 +192,35 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
   const dragRef = useRef(null);
   const [drag, setDrag] = useState(null);
   const [dragError, setDragError] = useState('');
+  const [dragNotice, setDragNotice] = useState('');
+  // A dropped class waiting for the admin to confirm the change.
+  const [pendingMove, setPendingMove] = useState(null);
+  const [savingMove, setSavingMove] = useState(false);
+
+  const undoMove = () => {
+    setClasses(pendingMove.before);
+    setPendingMove(null);
+  };
+
+  const confirmMove = async () => {
+    const { cls, changes, before } = pendingMove;
+    setSavingMove(true);
+    try {
+      const res = await apiFetch(`/api/classes/${cls.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Request failed');
+      setDragNotice(data?.notified
+        ? `${cls.title} moved. ${data.notified} booked ${data.notified === 1 ? 'client was' : 'clients were'} emailed the new time.`
+        : `${cls.title} moved.`);
+      if (data?.notifyFailed) setDragError(`${data.notifyFailed} email${data.notifyFailed === 1 ? '' : 's'} could not be sent. Please tell those clients yourself.`);
+    } catch (err) {
+      setClasses(before);
+      setDragError(`Could not move the class: ${err.message}`);
+    } finally {
+      setSavingMove(false);
+      setPendingMove(null);
+    }
+  };
   // Saving runs after the drag ends; these keep it reading current values.
   const latest = useRef({});
   useEffect(() => {
@@ -204,7 +233,7 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
   };
 
   const startDrag = (e, cls, mode, dayIdx) => {
-    if (!isAdmin || e.button > 0) return;
+    if (!isAdmin || e.button > 0 || pendingMove) return;
     e.preventDefault();
     e.stopPropagation();
     setPreview(null);
@@ -258,20 +287,27 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
         ? { duration: done.duration }
         : { time: minutesToLabel(done.start), date: isoDate(days[done.dayIdx].fullDate) };
 
-      // Show the change straight away, then save; undo it if saving fails.
+      // Show the class in its new place, then ask in a bar at the bottom of
+      // the screen before saving: a schedule change emails everyone booked.
+      // (A browser confirm() here, inside the pointer event, leaves Chrome
+      // ignoring the next drag.)
+      const dayText = days[done.dayIdx].fullDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
       setClasses(prev => prev.map(c => (c.id !== cls.id ? c : {
         ...c,
         ...(changes.time ? { time: changes.time, date: changes.date, dateId: days[done.dayIdx].id } : {}),
         ...(changes.duration ? { duration: `${changes.duration} min` } : {}),
       })));
       setDragError('');
-      try {
-        const res = await apiFetch(`/api/classes/${cls.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
-        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Request failed');
-      } catch (err) {
-        setClasses(before);
-        setDragError(err.message);
-      }
+      setDragNotice('');
+      setPendingMove({
+        cls,
+        changes,
+        before,
+        booked: (cls.takenSpots?.length ?? 0) > 0,
+        question: done.mode === 'resize'
+          ? `Change ${cls.title} to ${done.duration} minutes (${shortLabel(done.origStart)} – ${shortLabel(done.origStart + done.duration)})?`
+          : `Move ${cls.title} to ${dayText} at ${shortLabel(done.start)}?`,
+      });
     };
 
     window.addEventListener('pointermove', onMove);
@@ -517,7 +553,8 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
           </label>
         )}
 
-        {dragError && <p role="alert" className="mb-4 text-sm font-medium text-[#E02424]">Could not move the class: {dragError}</p>}
+        {dragError && <p role="alert" className="mb-4 text-sm font-medium text-[#E02424]">{dragError}</p>}
+        {dragNotice && <p role="status" className="mb-4 text-sm font-medium text-green-700">{dragNotice}</p>}
 
         {/* Mobile/Tablet Schedule List (Visible on < lg screens, or always if view === 'list') */}
         <div className={`${view === 'list' ? 'flex' : 'lg:hidden flex'} flex-col gap-4 pb-8`}>
@@ -665,6 +702,23 @@ export default function ClassScheduleGrid({ initialCategory = 'All categories', 
         </div>
 
       </div>
+
+      {pendingMove && (
+        <div role="alertdialog" aria-label="Confirm schedule change" className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] w-[calc(100%-2rem)] max-w-xl bg-[#2A180E] text-white rounded-2xl shadow-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 animate-fade-in">
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm">{pendingMove.question}</p>
+            <p className="text-xs text-white/70 mt-1">
+              {pendingMove.booked ? 'Clients already booked in this class will be emailed the new time.' : 'Nobody has booked this class yet.'}
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button type="button" onClick={undoMove} disabled={savingMove} className="px-4 py-2 rounded-lg text-sm font-bold text-white/80 hover:bg-white/10 transition-colors disabled:opacity-50">Undo</button>
+            <button type="button" onClick={confirmMove} disabled={savingMove} autoFocus className="px-4 py-2 rounded-lg text-sm font-bold bg-white text-[#2A180E] hover:bg-brand-sand transition-colors disabled:opacity-50">
+              {savingMove ? 'Saving…' : pendingMove.booked ? 'Move and email clients' : 'Move'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {preview && (() => {
         const { cls, rect } = preview;
