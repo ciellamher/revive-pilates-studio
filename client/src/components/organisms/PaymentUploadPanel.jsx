@@ -37,7 +37,7 @@ function AccountCard({ badge, badgeClass, bank, name, number, qr }) {
   );
 }
 
-export default function PaymentUploadPanel({ referenceId = '', onReferenceChange = () => {}, receipt = null, onReceiptChange = () => {}, onSubmit = () => {}, submitting = false, error = '', submitLabel = 'Submit Booking' }) {
+export default function PaymentUploadPanel({ referenceId = '', onReferenceChange = () => {}, receipt = null, onReceiptChange = () => {}, onSubmit = () => {}, submitting = false, error = '', submitLabel = 'Submit Booking', embedded = false }) {
   const payment = useStudioPayment();
   const [receiptError, setReceiptError] = useState('');
   const [readingReceipt, setReadingReceipt] = useState(false);
@@ -56,8 +56,9 @@ export default function PaymentUploadPanel({ referenceId = '', onReferenceChange
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-brand-sand/30 shadow-sm space-y-6">
-      <h3 className="font-serif text-2xl font-bold text-brand-dark">Payment Details</h3>
+    // embedded: inside a page section that has its own card and heading.
+    <div className={embedded ? 'space-y-6' : 'bg-white rounded-2xl p-6 border border-brand-sand/30 shadow-sm space-y-6'}>
+      {!embedded && <h3 className="font-serif text-2xl font-bold text-brand-dark">Payment Details</h3>}
       
       {payment ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

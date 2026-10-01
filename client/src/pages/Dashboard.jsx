@@ -350,12 +350,17 @@ export default function Dashboard() {
                     <p className="text-sm text-brand-dark/70 flex flex-wrap gap-x-4 gap-y-1">
                       <span className="flex items-center gap-1"><User size={14} /> {booking.instructor}</span>
                       <span className="flex items-center gap-1"><MapPin size={14} /> {booking.branch} · {booking.isPrivate ? 'Private session' : `Spot ${booking.spot}`}</span>
-                      {booking.guestNames?.length > 0 && <span className="flex items-center gap-1"><User size={14} /> With {booking.guestNames.join(' and ')}</span>}
+                      {booking.isGuest ? (
+                        <span className="flex items-center gap-1"><User size={14} /> Booked by {booking.clientName}{booking.guestNames.length > 1 ? `, with ${booking.guestNames.filter((_, i) => booking.guestEmails[i] !== user?.email).join(' and ')}` : ''}</span>
+                      ) : booking.guestNames?.length > 0 && <span className="flex items-center gap-1"><User size={14} /> With {booking.guestNames.join(' and ')}</span>}
+                      {booking.dryNeedling && <span className="flex items-center gap-1">+ Dry needling</span>}
                       <span className="flex items-center gap-1"><Clock size={14} /> {booking.duration}</span>
                     </p>
                   </div>
                   {isActive(booking) && (
-                    booking.canCancel ? (
+                    booking.isGuest ? (
+                      <p className="sm:w-44 shrink-0 text-xs text-brand-dark/50">{booking.clientName} booked this session. To change it, ask them or message the studio.</p>
+                    ) : booking.canCancel ? (
                       <button
                         onClick={() => handleCancelBooking(booking)}
                         disabled={cancellingId === booking.id}
@@ -406,6 +411,8 @@ export default function Dashboard() {
                       <h4 className="font-bold text-brand-dark">{p.name}</h4>
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${status.className}`}>{status.label}</span>
                     </div>
+                    {p.isShared && <p className="text-xs font-bold text-[#3B657F] mb-2">Shared with you by {p.clientName || p.clientEmail}</p>}
+                    {!p.isShared && p.sharedWith?.length > 0 && <p className="text-xs font-bold text-[#3B657F] mb-2 break-words">Shared with {p.sharedWith.join(', ')}</p>}
                     <p className="text-sm text-brand-dark/60 mb-4">
                       {p.status === 'pending' && `Bought ${formatDate(String(p.purchasedAt), { day: 'numeric', month: 'short', year: 'numeric' })}. The studio is checking your payment.`}
                       {p.status === 'active' && (p.expiresAt ? (() => {
@@ -451,11 +458,11 @@ export default function Dashboard() {
     // Everything paid for: class bookings paid directly, and package purchases.
     // Classes booked with a package credit are not separate payments.
     const payments = [
-      ...(bookings ?? []).filter(b => b.amount !== '1 credit').map(b => ({
+      ...(bookings ?? []).filter(b => b.amount !== '1 credit' && !b.isGuest).map(b => ({
         key: `b${b.id}`, title: b.className, detail: `Class on ${formatDate(b.date)} · ${b.time}`,
         reference: b.referenceId, amount: b.amount, at: b.bookedAt, status: bookingStatus(b),
       })),
-      ...(purchases ?? []).map(p => ({
+      ...(purchases ?? []).filter(p => !p.isShared).map(p => ({
         key: `p${p.id}`, title: p.name, detail: 'Package',
         reference: p.referenceId, amount: p.price, at: p.purchasedAt, status: packageStatus(p),
       })),

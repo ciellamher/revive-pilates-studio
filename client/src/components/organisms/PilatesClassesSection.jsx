@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Clock, BarChart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Clock, BarChart, ChevronLeft, ChevronRight } from 'lucide-react';
 import imgReformer from '../../assets/revive-photos/reformer_1.jpg';
 import imgMat from '../../assets/revive-photos/mat_pilates_1.jpg';
 import imgBarre from '../../assets/revive-photos/barre_6.jpg';
@@ -27,6 +27,8 @@ export default function PilatesClassesSection() {
   const classes = [
     {
       id: 'reformer-classes',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=reformer',
       title: 'Reformer Classes',
       subtitle: 'Dynamic Resistance Training',
       points: [
@@ -38,6 +40,8 @@ export default function PilatesClassesSection() {
     },
     {
       id: 'mat-classes',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=mat',
       title: 'Mat Classes',
       subtitle: 'Foundational Core Work',
       points: [
@@ -50,6 +54,8 @@ export default function PilatesClassesSection() {
     },
     {
       id: 'barre-classes',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=barre',
       title: 'Barre Classes',
       subtitle: 'Low-Impact Sculpting',
       points: [
@@ -62,6 +68,8 @@ export default function PilatesClassesSection() {
     },
     {
       id: 'private-classes',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=private',
       title: 'Private Classes',
       subtitle: 'Personalized Guidance',
       points: [
@@ -73,6 +81,8 @@ export default function PilatesClassesSection() {
     },
     {
       id: 'clinical-pilates',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=private&kind=clinical',
       title: 'Clinical Pilates',
       subtitle: 'Therapeutic Movement',
       points: [
@@ -84,6 +94,8 @@ export default function PilatesClassesSection() {
     },
     {
       id: 'prenatal-pilates',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=private',
       title: 'Prenatal Pilates',
       subtitle: 'Support During Pregnancy',
       points: [
@@ -95,6 +107,8 @@ export default function PilatesClassesSection() {
     },
     {
       id: 'postnatal-pilates',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=private',
       title: 'Postnatal Pilates',
       subtitle: 'Postpartum Recovery',
       points: [
@@ -150,15 +164,6 @@ export default function PilatesClassesSection() {
               </div>
               <div className="p-6 pt-6 flex flex-col flex-grow">
                 <h3 className="text-[22px] font-sans font-bold text-brand-dark mb-4">{cls.title}</h3>
-                
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} size={14} className="fill-[#F5B82E] text-[#F5B82E]" />
-                  ))}
-                  <div className="ml-2 border border-brand-dark/20 rounded-full px-3 py-1 text-[11px] font-medium text-brand-dark/70">
-                    {Math.floor(Math.random() * 20) + 5} Reviews
-                  </div>
-                </div>
 
                 <div className="flex items-center gap-4 mb-4 text-[12px] font-medium text-brand-dark/80">
                   <div className="flex items-center gap-1.5">
@@ -176,7 +181,7 @@ export default function PilatesClassesSection() {
                 </p>
 
                 <div className="mt-auto">
-                  <Link to="/book" className="inline-block bg-[#3A2A20] text-white px-6 py-2.5 rounded-full text-[13px] font-medium hover:bg-black transition-colors">
+                  <Link to={cls.link} className="inline-block bg-[#3A2A20] text-white px-6 py-2.5 rounded-full text-[13px] font-medium hover:bg-black transition-colors">
                     Book Now
                   </Link>
                 </div>

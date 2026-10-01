@@ -186,3 +186,16 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS private_kind TEXT;
 
 -- The other people coming to a duo or trio session, by name.
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_names TEXT[] NOT NULL DEFAULT '{}';
+
+-- The other attendees' emails, in the same order as guest_names. The booking
+-- shows in their account too, and they get the class emails.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_emails TEXT[] NOT NULL DEFAULT '{}';
+
+-- Clinical sessions can add dry needling, paid with the session.
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS dry_needling BOOLEAN NOT NULL DEFAULT false;
+
+-- Who else may book with a shareable package, by email. It shows in their
+-- account as soon as they sign in with that address.
+ALTER TABLE user_packages ADD COLUMN IF NOT EXISTS shared_with TEXT[] NOT NULL DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS user_packages_shared_with_idx ON user_packages USING GIN (shared_with);
+CREATE INDEX IF NOT EXISTS bookings_guest_emails_idx ON bookings USING GIN (guest_emails);

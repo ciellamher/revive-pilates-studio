@@ -32,7 +32,7 @@ export default function PilatesPrivateSessionSection() {
           <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left mt-20 md:mt-32">
             <div className="w-full max-w-md flex flex-col items-center md:items-start mb-12">
               <p className="text-[#3A2A20] text-[12px] leading-relaxed mb-6 text-center md:text-left font-medium">
-                One-on-one and semi-private sessions tailored to your body, goals, and rhythm. Includes 50-minute workout using Pilates equipment such as the Reformer, Tower, and Chair.
+                One-on-one and semi-private sessions tailored to your body, goals, and rhythm. Includes 50-minute workout using Pilates equipment such as the Reformer, Tower, Cadillac, and Chair.
               </p>
               
               <Link to="/book?category=private" className="border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-6 py-2 text-[12px] font-medium transition-colors w-fit">
@@ -61,9 +61,9 @@ export default function PilatesPrivateSessionSection() {
                   
                   <div className="mt-auto pt-4 flex flex-col items-center shrink-0 w-full">
                     <p className="text-[10px] italic text-[#3A2A20] mb-2 font-medium">For first-time private clients only!</p>
-                    <p className="text-[10px] italic text-[#3A2A20]/70 mb-6">Expires 30 days after purchase.</p>
+                    <p className="text-[10px] italic text-[#3A2A20]/70 mb-6">Valid for 30 days from purchase.</p>
                     
-                    <Link to="/checkout" className="flex justify-center items-center border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-8 py-2 text-[12px] font-medium transition-colors w-full bg-transparent whitespace-nowrap">
+                    <Link to="/buy/private-intro" className="flex justify-center items-center border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-8 py-2 text-[12px] font-medium transition-colors w-full bg-transparent whitespace-nowrap">
                       Buy now
                     </Link>
                   </div>
@@ -82,9 +82,9 @@ export default function PilatesPrivateSessionSection() {
                   
                   <div className="mt-auto pt-4 flex flex-col items-center shrink-0 w-full">
                     <div className="h-[23px] mb-2 hidden sm:block"></div> {/* Spacer to match the "For first time..." height */}
-                    <p className="text-[10px] italic text-[#3A2A20]/70 mb-6">Expires 30 days after purchase.</p>
+                    <p className="text-[10px] italic text-[#3A2A20]/70 mb-6">Valid for 7 days from your first booking.</p>
                     
-                    <Link to="/checkout" className="flex justify-center items-center border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-8 py-2 text-[12px] font-medium transition-colors w-full bg-transparent whitespace-nowrap">
+                    <Link to="/buy/private-1" className="flex justify-center items-center border border-[#3A2A20] text-[#3A2A20] hover:bg-[#3A2A20] hover:text-[#F5F2ED] px-8 py-2 text-[12px] font-medium transition-colors w-full bg-transparent whitespace-nowrap">
                       Buy now
                     </Link>
                   </div>

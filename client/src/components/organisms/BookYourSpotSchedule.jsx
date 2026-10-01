@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
 import { API_BASE } from '../../api/base';
 import { checkoutClassState, checkoutPrivateState, canBookPrivately, matchesPrivateFilter, privateFilterState } from '../../api/checkoutState';
-import { GROUP_CLASS_TYPES, isPrivateType } from '../../api/classTypes';
+import { CLASS_FILTER_OPTIONS, PRIVATE_FILTER, isPrivateType } from '../../api/classTypes';
 import { labelToMinutes } from '../../api/time';
 
 const getWeekDays = (weeksOffset = 0) => {
@@ -32,12 +32,7 @@ const getWeekDays = (weeksOffset = 0) => {
   return days;
 };
 
-// Class filter choices. The private ones show sessions of that kind plus
-// empty Reformer classes that can be booked as one. Trio appears only when a
-// trio session is on the schedule.
-const BASE_CLASS_OPTIONS = ['Classes', ...GROUP_CLASS_TYPES, 'Private Session', 'Duo Private'];
-
-export default function BookYourSpotSchedule({ globalLocation = 'Location', setGlobalLocation = () => {}, initialClassType = 'Classes' }) {
+export default function BookYourSpotSchedule({ globalLocation = 'Location', setGlobalLocation = () => {}, initialClassType = 'Classes', initialPrivateKind = 'solo' }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const currentWeekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
   const [selectedDayId, setSelectedDayId] = useState(() => new Date().toDateString());
@@ -45,7 +40,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
   // Filter states
   const [classType, setClassType] = useState(initialClassType);
   const [instructor, setInstructor] = useState('Instructor');
-  const privateFilter = isPrivateType(classType);
+  const privateFilter = classType === PRIVATE_FILTER;
   
   // Use globalLocation as the local state equivalent
   const location = globalLocation;
@@ -88,7 +83,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
         // Cancelled classes are not shown to clients.
         if (cls.isCancelled) return false;
         if (classType !== 'Classes') {
-          if (privateFilter ? !matchesPrivateFilter(cls, classType) : cls.title !== classType) return false;
+          if (privateFilter ? !matchesPrivateFilter(cls) : cls.title !== classType) return false;
         }
         if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
         return true;
@@ -96,7 +91,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
         ...cls,
         location: cls.branch,
         spots: `${Math.max(0, cls.capacity - (cls.takenSpots?.length ?? 0))} / ${cls.capacity} left`,
-        status: cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : privateFilter && cls.title !== classType ? `Book as ${classType}` : 'Book Now'
+        status: cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : privateFilter && !isPrivateType(cls.title) ? 'Book Private' : 'Book Now'
       }));
       data.push({
         dayId: d.id,
@@ -196,7 +191,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
               <CustomDropdown
                 value={classType}
                 onChange={setClassType}
-                options={classes.some(c => c.title === 'Trio Private') ? [...BASE_CLASS_OPTIONS, 'Trio Private'] : BASE_CLASS_OPTIONS}
+                options={CLASS_FILTER_OPTIONS}
                 placeholder="Classes"
               />
             </div>
@@ -263,7 +258,7 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
                           ) : (
                             <Link 
                               to="/checkout"
-                              state={privateFilter ? privateFilterState(cls, classType) : checkoutClassState(cls)}
+                              state={privateFilter ? privateFilterState(cls, initialPrivateKind) : checkoutClassState(cls)}
                               className="bg-brand-sand text-brand-dark px-8 py-3 rounded-full text-sm font-bold hover:bg-white transition-colors w-full shadow-sm text-center block"
                             >
                               {cls.status}

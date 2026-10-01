@@ -4,12 +4,18 @@ import Navbar from '../components/organisms/Navbar';
 import BookYourSpotSchedule from '../components/organisms/BookYourSpotSchedule';
 import ClassScheduleGrid from '../components/organisms/ClassScheduleGrid';
 import Footer from '../components/organisms/Footer';
+import { CATEGORY_FILTERS, privateKind } from '../api/classTypes';
 
 export default function Booking() {
   const [view, setView] = useState('list'); // 'list' | 'calendar'
-  // /book?category=private opens straight onto private sessions.
+  // /book?category=mat (reformer, mat, barre, private) opens with that class
+  // filter on. &kind=clinical starts a private booking as that kind.
   const [searchParams] = useSearchParams();
-  const initialClassType = searchParams.get('category') === 'private' ? 'Private Session' : 'Classes';
+  const category = searchParams.get('category');
+  const initialClassType = CATEGORY_FILTERS[category] ?? 'Classes';
+  const initialPrivateKind = privateKind(searchParams.get('kind')) ? searchParams.get('kind') : 'solo';
+  // A new link remounts the schedule, so its filter starts over.
+  const scheduleKey = `${category}-${initialPrivateKind}`;
   const [location, setLocation] = useState('Location');
 
   // Dynamic theme colors
@@ -63,9 +69,9 @@ export default function Booking() {
         </div>
 
         {view === 'list' ? (
-          <BookYourSpotSchedule globalLocation={location} setGlobalLocation={setLocation} initialClassType={initialClassType} />
+          <BookYourSpotSchedule key={scheduleKey} globalLocation={location} setGlobalLocation={setLocation} initialClassType={initialClassType} initialPrivateKind={initialPrivateKind} />
         ) : (
-          <ClassScheduleGrid hideTitle={true} globalLocation={location} setGlobalLocation={setLocation} initialClassType={initialClassType} />
+          <ClassScheduleGrid key={scheduleKey} hideTitle={true} globalLocation={location} setGlobalLocation={setLocation} initialClassType={initialClassType} initialPrivateKind={initialPrivateKind} />
         )}
       </main>
 

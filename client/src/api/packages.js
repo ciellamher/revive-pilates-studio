@@ -30,7 +30,7 @@ export const creditLabel = (type) => CREDIT_LABELS[type] ?? type
 export function creditTypesForClass(title = '', privateKind = null) {
   const t = title.toLowerCase()
   const kind = privateKind ?? (t.includes('duo') ? 'duo' : t.includes('trio') ? 'trio' : t.includes('private') ? 'solo' : null)
-  if (t.includes('clinical')) return ['clinical', 'any']
+  if (kind === 'clinical' || t.includes('clinical')) return ['clinical', 'any']
   if (kind === 'duo') return ['duo', 'any']
   if (kind === 'trio') return ['trio', 'any']
   if (kind === 'solo') return ['private', 'any']
@@ -63,3 +63,6 @@ export function creditsSummary(pkg) {
 }
 
 export const PACKAGE_CATEGORIES = ['Starter Packages', 'Group Classes', 'Private Classes', 'Clinical Pilates', 'Membership']
+
+// How many people a shareable package can be shared with (the server's MAX_SHARES).
+export const MAX_SHARES = 3

@@ -6,13 +6,13 @@ const STUDIO_TIMEZONE = 'Asia/Manila'
 const CLASS_START = `((c.class_date + to_timestamp(c.start_time, 'HH12:MI AM')::time) AT TIME ZONE '${STUDIO_TIMEZONE}')`
 
 const BOOKING_WITH_CLASS = `
-  b.id, b.status, b.is_private, b.private_kind, b.guest_names, (b.receipt IS NOT NULL) AS has_receipt, b.client_name, b.client_email, b.spot, b.reference_id, b.amount,
+  b.id, b.status, b.is_private, b.private_kind, b.guest_names, b.guest_emails, b.dry_needling, (b.receipt IS NOT NULL) AS has_receipt, b.client_name, b.client_email, b.spot, b.reference_id, b.amount,
   c.title, to_char(c.class_date, 'YYYY-MM-DD') AS date, c.start_time,
   (SELECT name FROM coaches WHERE id = c.coach_id) AS instructor, c.branch`
 
 // "Reformer Flow (Duo)" for a group class booked whole; private classes keep
 // their own title ("Duo Private").
-const KIND_LABEL = { solo: 'Private', duo: 'Duo', trio: 'Trio' }
+const KIND_LABEL = { solo: 'Private', duo: 'Duo', trio: 'Trio', clinical: 'Clinical' }
 function bookedTitle(row) {
   if (!row.is_private || /private|clinical/i.test(row.title)) return row.title
   return `${row.title} (${KIND_LABEL[row.private_kind] ?? 'Private'})`
@@ -27,7 +27,10 @@ function toBooking(row) {
     clientEmail: row.client_email,
     className: bookedTitle(row),
     isPrivate: row.is_private,
+    privateKind: row.private_kind,
     guestNames: row.guest_names ?? [],
+    guestEmails: row.guest_emails ?? [],
+    dryNeedling: row.dry_needling,
     hasReceipt: row.has_receipt,
     date: row.date,
     time: row.start_time,
@@ -45,8 +48,12 @@ function toRecipient(row) {
     name: row.client_name,
     email: row.client_email,
     spot: row.spot,
+    isPrivate: row.is_private,
     title: bookedTitle(row),
     guestNames: row.guest_names ?? [],
+    // The other attendees get the same emails.
+    guestEmails: row.guest_emails ?? [],
+    dryNeedling: row.dry_needling,
     date: row.date,
     time: row.start_time,
     instructor: row.instructor,
@@ -84,8 +91,8 @@ export const BOOKABLE = (spotParam, privateParam) => `
 export async function create(pool, input) {
   try {
     const inserted = await pool.query(
-      `INSERT INTO bookings (class_id, client_name, client_email, spot, reference_id, amount, is_private, receipt, private_kind, guest_names)
-       SELECT c.id, $2, $3, $4, $5, $6, $7, $8, $9, $10
+      `INSERT INTO bookings (class_id, client_name, client_email, spot, reference_id, amount, is_private, receipt, private_kind, guest_names, guest_emails, dry_needling)
+       SELECT c.id, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
        FROM classes c
        WHERE ${BOOKABLE('$4', '$7::boolean')}
        RETURNING id`,
@@ -94,6 +101,8 @@ export async function create(pool, input) {
         input.referenceId, input.amount, input.isPrivate ?? false, input.receipt ?? null,
         input.isPrivate ? (input.privateKind ?? 'solo') : null,
         input.guestNames ?? [],
+        input.guestEmails ?? [],
+        input.dryNeedling ?? false,
       ]
     )
     if (inserted.rowCount === 0) return { problem: 'unavailable' }
@@ -177,7 +186,9 @@ export async function releaseReminder(pool, bookingId) {
   await pool.query('UPDATE bookings SET reminder_sent_at = NULL WHERE id = $1', [bookingId])
 }
 
-// A client's own bookings, newest class first, for their account page.
+// A client's bookings, newest class first, for their account page: their own,
+// and duo or trio sessions someone else booked with them as an attendee
+// (isGuest; only the person who booked can cancel those).
 // can_cancel follows the studio policy: up to 12 hours before the class.
 export async function getForClient(pool, email) {
   const result = await pool.query(
@@ -185,9 +196,10 @@ export async function getForClient(pool, email) {
             ${CLASS_START} > now() AS is_upcoming,
             (${CLASS_START} > now() + interval '12 hours'
               AND b.status IN ('pending', 'confirmed')
-              AND NOT c.is_cancelled) AS can_cancel
+              AND NOT c.is_cancelled
+              AND b.client_email = $1) AS can_cancel
      FROM bookings b JOIN classes c ON c.id = b.class_id
-     WHERE b.client_email = $1
+     WHERE b.client_email = $1 OR $1 = ANY(b.guest_emails)
      ORDER BY c.class_date DESC, b.id DESC`,
     [email]
   )
@@ -200,6 +212,7 @@ export async function getForClient(pool, email) {
     classCancelled: row.is_cancelled,
     isUpcoming: row.is_upcoming,
     canCancel: row.can_cancel,
+    isGuest: row.client_email !== email,
   }))
 }
 
@@ -261,7 +274,7 @@ export async function move(pool, id, toClassId, creditTypesForClass) {
     if (target.rowCount === 0) return rollback(client, 'unavailable')
     const { capacity, title } = target.rows[0]
 
-    if (booking.user_package_id && !creditTypesForClass(title).includes(booking.credit_type)) {
+    if (booking.user_package_id && !creditTypesForClass(title, booking.is_private ? (booking.private_kind ?? 'solo') : null).includes(booking.credit_type)) {
       return rollback(client, 'credit-mismatch')
     }
 

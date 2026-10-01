@@ -9,8 +9,8 @@ import * as usersRepo from './usersRepo.js';
 import * as packagesRepo from './packagesRepo.js';
 import * as settingsRepo from './settingsRepo.js';
 import { allow, clientIp } from './rateLimit.js';
-import { PACKAGES, findPackage, creditTypesForClass } from './packagesCatalog.js';
-import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, sendBookingCancelled, sendBookingMoved, sendClassRescheduled, sendPaymentRejected, sendPackageRejected, MAIL_MODE } from './mailer.js';
+import { PACKAGES, MAX_SHARES, findPackage, creditTypesForClass } from './packagesCatalog.js';
+import { sendMail, sendReminder, sendCancellation, sendConfirmation, sendPackageActivated, sendBookingReceived, sendPackageReceived, sendBookingCancelled, sendBookingMoved, sendClassRescheduled, sendPaymentRejected, sendPackageRejected, sendPackageShared, MAIL_MODE } from './mailer.js';
 
 const app = express();
 
@@ -350,32 +350,47 @@ app.get('/api/bookings', requireAdmin, async (req, res, next) => {
   }
 });
 
-// Whether a booking takes the whole class. Private, duo and trio classes are
-// always booked whole; a group Reformer class can be taken whole as a private,
-// duo or trio session when the client asks (body.private and body.privateKind).
-const PRIVATE_KINDS = ['solo', 'duo', 'trio'];
+// Whether a booking takes the whole class. Duo, trio and clinical classes are
+// always that kind. A private class, or a group Reformer class taken whole when
+// the client asks (body.private), is the kind the client picked
+// (body.privateKind), as long as the class has room for that many people.
+const KIND_CAPACITY = { solo: 1, duo: 2, trio: 3, clinical: 1 };
 function privateBookingOf(body, cls) {
   const t = cls.title.toLowerCase();
   if (t.includes('duo')) return { isPrivate: true, privateKind: 'duo' };
   if (t.includes('trio')) return { isPrivate: true, privateKind: 'trio' };
-  if (t.includes('private') || t.includes('clinical')) return { isPrivate: true, privateKind: 'solo' };
-  if (body.private === true) return { isPrivate: true, privateKind: PRIVATE_KINDS.includes(body.privateKind) ? body.privateKind : 'solo' };
-  return { isPrivate: false, privateKind: null };
+  if (t.includes('clinical')) return { isPrivate: true, privateKind: 'clinical' };
+  if (!t.includes('private') && body.private !== true) return { isPrivate: false, privateKind: null };
+  const asked = body.privateKind;
+  const fits = Object.hasOwn(KIND_CAPACITY, asked) && KIND_CAPACITY[asked] <= cls.capacity;
+  return { isPrivate: true, privateKind: fits ? asked : 'solo' };
 }
 
-// The other attendees of a duo (one more) or trio (two more) session.
-// Returns { guestNames } or { error }.
+// The other attendees of a duo (one more) or trio (two more) session, each
+// with a name and an email (body.guests: [{ name, email }]). The booking shows
+// in their accounts too. Returns { guestNames, guestEmails } or { error }.
 const GUESTS_NEEDED = { duo: 1, trio: 2 };
-function parseGuestNames(body, privateKind) {
+function parseGuests(body, privateKind, bookerEmail) {
   const needed = GUESTS_NEEDED[privateKind] ?? 0;
-  if (needed === 0) return { guestNames: [] };
-  const names = Array.isArray(body.guestNames) ? body.guestNames : [];
-  const clean = names.slice(0, needed).map((n) => (typeof n === 'string' ? n.trim() : ''));
-  if (clean.length < needed || clean.some((n) => !n || n.length > 100)) {
-    return { error: needed === 1 ? "Please enter the second attendee's name" : "Please enter both other attendees' names" };
+  const guestNames = [];
+  const guestEmails = [];
+  const given = Array.isArray(body.guests) ? body.guests : [];
+  for (let i = 0; i < needed; i++) {
+    const guest = given[i] && typeof given[i] === 'object' ? given[i] : {};
+    const name = typeof guest.name === 'string' ? guest.name.trim() : '';
+    const email = typeof guest.email === 'string' ? guest.email.trim().toLowerCase() : '';
+    const who = needed === 1 ? 'the second attendee' : `attendee ${i + 2}`;
+    if (!name || name.length > 100) return { error: `Please enter ${who}'s name` };
+    if (!EMAIL.test(email) || email.length > 254) return { error: `Please enter ${who}'s email` };
+    if (email === bookerEmail || guestEmails.includes(email)) return { error: 'Each attendee needs their own email address' };
+    guestNames.push(name);
+    guestEmails.push(email);
   }
-  return { guestNames: clean };
+  return { guestNames, guestEmails };
 }
+
+// Dry needling is an optional extra for a clinical session.
+const wantsDryNeedling = (body, privateKind) => privateKind === 'clinical' && body.dryNeedling === true;
 
 // Booking with a package credit: the client must be signed in, the spot is
 // confirmed straight away (the package was paid for already) and one credit of
@@ -392,7 +407,7 @@ async function bookWithPackage(req, res, body) {
   const { isPrivate, privateKind } = privateBookingOf(body, cls);
   if (!isPrivate && (!Number.isInteger(body.spot) || body.spot < 1)) return res.status(400).json({ error: 'Please select a spot' });
   const creditTypes = creditTypesForClass(cls.title, privateKind);
-  const guests = parseGuestNames(body, privateKind);
+  const guests = parseGuests(body, privateKind, session.email);
   if (guests.error) return res.status(400).json({ error: guests.error });
   if (creditTypes.length === 0) return res.status(400).json({ error: 'This class cannot be booked with a package online.' });
 
@@ -401,7 +416,8 @@ async function bookWithPackage(req, res, body) {
 
   const { bookingId, problem, validUntil } = await packagesRepo.bookWithCredit(pool, {
     purchaseId, email: session.email, classId, spot: isPrivate ? 1 : body.spot, clientName: clientName.slice(0, 100),
-    creditTypes, isPrivate, privateKind, guestNames: guests.guestNames,
+    creditTypes, isPrivate, privateKind, guestNames: guests.guestNames, guestEmails: guests.guestEmails,
+    dryNeedling: wantsDryNeedling(body, privateKind),
   });
   if (problem === 'no-package') return res.status(409).json({ error: 'That package is not active, or has expired.' });
   if (problem === 'no-credit') return res.status(409).json({ error: 'That package has no credits left for this class.' });
@@ -454,12 +470,13 @@ app.post('/api/bookings', requireUser, async (req, res, next) => {
     }
     const receipt = parseImage(body.receipt, 'The receipt');
     if (receipt.error) return res.status(400).json({ error: receipt.error });
-    const guests = parseGuestNames(body, isPrivate ? privateKind : null);
+    const guests = parseGuests(body, isPrivate ? privateKind : null, clientEmail);
     if (guests.error) return res.status(400).json({ error: guests.error });
 
     const { booking, problem } = await bookingsRepo.create(pool, {
       classId, clientName, clientEmail, spot: isPrivate ? 1 : body.spot, referenceId, amount,
-      isPrivate, privateKind, receipt: receipt.image, guestNames: guests.guestNames,
+      isPrivate, privateKind, receipt: receipt.image, guestNames: guests.guestNames, guestEmails: guests.guestEmails,
+      dryNeedling: wantsDryNeedling(body, privateKind),
     });
     if (problem === 'spot-taken') {
       return res.status(409).json({ error: 'That spot was just taken. Please choose another one.' });
@@ -726,6 +743,21 @@ app.get('/api/me/packages', requireUser, async (req, res, next) => {
   }
 });
 
+// The people a shareable package is shared with, by email. Returns { emails }
+// or { error }.
+function parseShares(value, pkg, buyerEmail) {
+  const given = Array.isArray(value) ? value : [];
+  const emails = [...new Set(given
+    .map((email) => (typeof email === 'string' ? email.trim().toLowerCase() : ''))
+    .filter(Boolean))];
+  if (emails.length === 0) return { emails };
+  if (!pkg.shareable) return { error: 'This package cannot be shared' };
+  if (emails.length > MAX_SHARES) return { error: `A package can be shared with up to ${MAX_SHARES} people` };
+  if (emails.some((email) => !EMAIL.test(email) || email.length > 254)) return { error: 'Please check the emails you are sharing with' };
+  if (emails.includes(buyerEmail)) return { error: 'You do not need to share a package with yourself' };
+  return { emails };
+}
+
 app.post('/api/me/packages', requireUser, async (req, res, next) => {
   try {
     if (await rateLimited(res, `purchase:${req.userEmail}`, 10, 60)) return;
@@ -737,8 +769,10 @@ app.post('/api/me/packages', requireUser, async (req, res, next) => {
     }
     const receipt = parseImage(req.body?.receipt, 'The receipt');
     if (receipt.error) return res.status(400).json({ error: receipt.error });
+    const shares = parseShares(req.body?.sharedWith, pkg, req.userEmail);
+    if (shares.error) return res.status(400).json({ error: shares.error });
     await usersRepo.upsert(pool, { email: req.userEmail });
-    const purchase = await packagesRepo.create(pool, req.userEmail, pkg, referenceId, receipt.image);
+    const purchase = await packagesRepo.create(pool, req.userEmail, pkg, referenceId, receipt.image, shares.emails);
     try {
       await sendPackageReceived(purchase);
     } catch (error) {
@@ -768,6 +802,10 @@ app.patch('/api/package-purchases/:id', requireAdmin, async (req, res, next) => 
 
     try {
       await (status === 'active' ? sendPackageActivated : sendPackageRejected)(purchase);
+      // The people it is shared with hear that they can use it now.
+      if (status === 'active') {
+        for (const email of purchase.sharedWith) await sendPackageShared(purchase, email);
+      }
       purchase.emailed = true;
     } catch (error) {
       console.error(`Package email for purchase ${purchase.id} (${status}) failed:`, error.message);

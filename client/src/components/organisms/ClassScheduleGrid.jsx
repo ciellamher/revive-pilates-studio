@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import CustomDropdown from '../atoms/CustomDropdown';
 import { API_BASE, apiFetch } from '../../api/base';
 import { checkoutClassState, matchesPrivateFilter, privateFilterState } from '../../api/checkoutState';
-import { GROUP_CLASS_TYPES, isPrivateType, priceFor } from '../../api/classTypes';
+import { CLASS_FILTER_OPTIONS, PRIVATE_FILTER, isPrivateType, priceFor, privateKind } from '../../api/classTypes';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotify } from '../Notifications';
 import { DAY_START, DAY_END, labelToMinutes, minutesToLabel, durationOf, shortLabel } from '../../api/time';
@@ -79,12 +79,7 @@ function layoutDay(events) {
   return placed;
 }
 
-// Class filter choices. The private ones show sessions of that kind plus
-// empty Reformer classes that can be booked as one. Trio appears only when a
-// trio session is on the schedule.
-const BASE_CLASS_OPTIONS = ['Classes', ...GROUP_CLASS_TYPES, 'Private Session', 'Duo Private'];
-
-export default function ClassScheduleGrid({ initialClassType = 'Classes', hideTitle = false, adminHeader = null, onClassClick = null, onEmptySlotClick = null, branch = null, globalLocation = null, setGlobalLocation = null, refreshKey = 0, view = 'calendar' }) {
+export default function ClassScheduleGrid({ initialClassType = 'Classes', initialPrivateKind = 'solo', hideTitle = false, adminHeader = null, onClassClick = null, onEmptySlotClick = null, branch = null, globalLocation = null, setGlobalLocation = null, refreshKey = 0, view = 'calendar' }) {
   const isAdmin = Boolean(onClassClick);
   const [classType, setClassType] = useState(initialClassType);
   const [instructor, setInstructor] = useState('Instructor');
@@ -148,7 +143,7 @@ export default function ClassScheduleGrid({ initialClassType = 'Classes', hideTi
         if (cls.isCancelled && !(isAdmin && showCancelled)) return false;
         if (location !== 'Location' && cls.branch && !location.includes(cls.branch)) return false;
         if (classType !== 'Classes') {
-          if (isPrivateType(classType) ? !matchesPrivateFilter(cls, classType) : cls.title !== classType) return false;
+          if (classType === PRIVATE_FILTER ? !matchesPrivateFilter(cls) : cls.title !== classType) return false;
         }
         if (instructor !== 'Instructor' && cls.instructor && !instructor.includes(cls.instructor)) return false;
         return true;
@@ -182,8 +177,9 @@ export default function ClassScheduleGrid({ initialClassType = 'Classes', hideTi
     }
   }, [availableInstructors, instructor]);
 
-  const linkState = (cls) => (isPrivateType(classType) ? privateFilterState(cls, classType) : checkoutClassState(cls));
-  const classOptions = classes.some(c => c.title === 'Trio Private') ? [...BASE_CLASS_OPTIONS, 'Trio Private'] : BASE_CLASS_OPTIONS;
+  // Under the private filter a class is booked whole; the client picks solo,
+  // duo, trio or clinical at checkout.
+  const linkState = (cls) => (classType === PRIVATE_FILTER ? privateFilterState(cls, initialPrivateKind) : checkoutClassState(cls));
 
   // ---- Admin drag and drop -------------------------------------------------
   // Dragging a class moves it to another time or day; dragging its bottom
@@ -516,7 +512,7 @@ export default function ClassScheduleGrid({ initialClassType = 'Classes', hideTi
               <CustomDropdown
                 value={classType}
                 onChange={setClassType}
-                options={classOptions}
+                options={CLASS_FILTER_OPTIONS}
                 placeholder="Classes"
               />
             </div>
@@ -720,8 +716,8 @@ export default function ClassScheduleGrid({ initialClassType = 'Classes', hideTi
         const [y, m, dd] = (cls.date ?? '').split('-').map(Number);
         const dateText = cls.date ? new Date(y, m - 1, dd).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : cls.dateId;
         const status = cls.isCancelled ? 'Cancelled' : cls.isDone ? 'Started' : cls.isFull ? 'Full' : null;
-        // Under a private filter a group class is offered as that private kind.
-        const bookedAs = !isAdmin && isPrivateType(classType) && cls.title !== classType ? classType : cls.title;
+        // Under the private filter a group class is offered as a private session.
+        const bookedAs = !isAdmin && classType === PRIVATE_FILTER && !isPrivateType(cls.title) ? (privateKind(initialPrivateKind)?.title ?? PRIVATE_FILTER) : cls.title;
         const width = 272;
         const left = rect.right + 8 + width < window.innerWidth ? rect.right + 8 : Math.max(8, rect.left - width - 8);
         const top = Math.min(Math.max(8, rect.top), window.innerHeight - 240);

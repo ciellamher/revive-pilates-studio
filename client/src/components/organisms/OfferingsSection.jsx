@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Clock, BarChart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Clock, BarChart, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import imgReformer from '../../assets/revive-photos/reformer_1.jpg';
 import imgMat from '../../assets/revive-photos/mat_pilates_1.jpg';
@@ -14,42 +14,56 @@ export default function OfferingsSection() {
   const classes = [
     {
       id: 'reformer-classes',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=reformer',
       title: 'Reformer Classes',
       description: 'Dynamic resistance training utilizing a reformer. Offers adjustable resistance through springs and pulleys for a broader range of exercises.',
       image: imgReformer
     },
     {
       id: 'mat-classes',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=mat',
       title: 'Mat Classes',
       description: 'Foundational core work performed on a mat. Uses body weight and minimal props for an accessible, simple Pilates experience.',
       image: imgMat
     },
     {
       id: 'barre-classes',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=barre',
       title: 'Barre Classes',
       description: 'Full-body, low-impact workout combining ballet, Pilates, and yoga to focus on core stability, glute activation, and total-body toning.',
       image: imgBarre
     },
     {
       id: 'private-classes',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=private',
       title: 'Private Classes',
       description: 'One-on-one, duo, or trio sessions designed to meet your specific goals and needs with focused guidance and precise form correction.',
       image: imgPrivate
     },
     {
       id: 'clinical-pilates',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=private&kind=clinical',
       title: 'Clinical Pilates',
       description: 'Led by a licensed physical therapist. Focuses on assessment-based, safe, and controlled movement, typically taken with a doctor\'s referral.',
       image: imgClinical
     },
     {
       id: 'prenatal-pilates',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=private',
       title: 'Prenatal Pilates',
       description: 'Designed for expectant mothers to enhance strength, mobility, and body support during pregnancy with safe, controlled movements.',
       image: imgPrenatal
     },
     {
       id: 'postnatal-pilates',
+      // Book Now opens the schedule filtered to this class.
+      link: '/book?category=private',
       title: 'Postnatal Pilates',
       description: 'Designed for postpartum recovery, focusing on core strength, stability, and proper alignment for a safe return to movement.',
       image: imgPostnatal
@@ -115,15 +129,6 @@ export default function OfferingsSection() {
               </div>
               <div className="p-6 pt-6 flex flex-col flex-grow">
                 <h3 className="text-[22px] font-sans font-bold text-brand-dark mb-4">{cls.title}</h3>
-                
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} size={14} className="fill-[#F5B82E] text-[#F5B82E]" />
-                  ))}
-                  <div className="ml-2 border border-brand-dark/20 rounded-full px-3 py-1 text-[11px] font-medium text-brand-dark/70">
-                    {Math.floor(Math.random() * 20) + 5} Reviews
-                  </div>
-                </div>
 
                 <div className="flex items-center gap-4 mb-4 text-[12px] font-medium text-brand-dark/80">
                   <div className="flex items-center gap-1.5">
@@ -141,7 +146,7 @@ export default function OfferingsSection() {
                 </p>
 
                 <div className="mt-auto">
-                  <Link to="/book" className="inline-block bg-[#3A2A20] text-white px-6 py-2.5 rounded-full text-[13px] font-medium hover:bg-black transition-colors">
+                  <Link to={cls.link} className="inline-block bg-[#3A2A20] text-white px-6 py-2.5 rounded-full text-[13px] font-medium hover:bg-black transition-colors">
                     Book Now
                   </Link>
                 </div>

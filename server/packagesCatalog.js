@@ -69,11 +69,11 @@ export const CREDIT_TYPES = ['reformer', 'mat', 'group', 'any', 'private', 'duo'
 export const findPackage = (id) => PACKAGES.find((p) => p.id === id) ?? null
 
 // Which credits a class can use, most specific first, so flexible credits
-// last longest. Private kinds: 'solo', 'duo', 'trio'.
+// last longest. Private kinds: 'solo', 'duo', 'trio', 'clinical'.
 export function creditTypesForClass(title, privateKind = null) {
   const t = title.toLowerCase()
   const kind = privateKind ?? (t.includes('duo') ? 'duo' : t.includes('trio') ? 'trio' : t.includes('private') ? 'solo' : null)
-  if (t.includes('clinical')) return ['clinical', 'any']
+  if (kind === 'clinical' || t.includes('clinical')) return ['clinical', 'any']
   if (kind === 'duo') return ['duo', 'any']
   if (kind === 'trio') return ['trio', 'any']
   if (kind === 'solo') return ['private', 'any']
@@ -81,5 +81,8 @@ export function creditTypesForClass(title, privateKind = null) {
   if (t.includes('mat') || t.includes('barre')) return ['mat', 'group', 'any', 'unlimited']
   return []
 }
+
+// How many people a shareable package can be shared with, besides the buyer.
+export const MAX_SHARES = 3
 
 export const formatPeso = (value) => `₱${value.toLocaleString('en-US')}`

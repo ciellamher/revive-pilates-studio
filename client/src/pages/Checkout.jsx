@@ -7,7 +7,7 @@ import { Calendar, Clock, MapPin, User, Ticket } from 'lucide-react';
 import PaymentUploadPanel from '../components/organisms/PaymentUploadPanel';
 import { apiFetch } from '../api/base';
 import { creditTypesForClass, creditLabel, packageCovers } from '../api/packages';
-import { priceFor } from '../api/classTypes';
+import { priceFor, PRIVATE_KINDS, PRIVATE_KIND_DETAILS, DRY_NEEDLING_PRICE, privateKind as kindInfo, hasFixedKind } from '../api/classTypes';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotify } from '../components/Notifications';
 import classPreviewImg from '../assets/revive-photos/reformer_11.jpg';
@@ -52,14 +52,32 @@ export default function Checkout() {
     capacity,
     takenSpots = [],
     isPrivate = false,
-    privateKind = null
+    privateKind: startingKind = null,
+    classTitle = title,
   } = checkoutState || {};
+
+  // A private session that is not fixed to one kind (a Reformer class taken
+  // whole, or a "Private Session" class) can be booked as any kind the class
+  // has room for: solo, duo, trio or clinical.
+  const kindChoices = isPrivate && !hasFixedKind(classTitle)
+    ? PRIVATE_KINDS.filter(k => k.capacity <= (capacity ?? 1))
+    : [];
+  const [chosenKind, setChosenKind] = useState(startingKind);
+  // A new class (say, from "book this as a private class") starts over.
+  useEffect(() => setChosenKind(startingKind), [classId, startingKind]);
+  const privateKind = isPrivate ? (chosenKind ?? 'solo') : null;
+  const bookingTitle = kindChoices.length > 0 ? kindInfo(privateKind).title : title;
+  // Clinical sessions can add dry needling.
+  const [dryNeedling, setDryNeedling] = useState(false);
+  const withDryNeedling = privateKind === 'clinical' && dryNeedling;
 
   // Signed-in clients start with their own details; they can still change them.
   const { user } = useAuth();
   const [attendeeName, setAttendeeName] = useState(user?.name ?? '');
-  // A duo session has one more attendee, a trio two more.
-  const [guestNames, setGuestNames] = useState(['', '']);
+  // A duo session has one more attendee, a trio two more, each with a name and
+  // an email so the booking shows in their account too.
+  const [guestList, setGuestList] = useState([{ name: '', email: '' }, { name: '', email: '' }]);
+  const setGuest = (i, field, value) => setGuestList(prev => prev.map((g, j) => (j === i ? { ...g, [field]: value } : g)));
   const attendeeEmail = user?.email ?? '';
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [referenceId, setReferenceId] = useState('');
@@ -91,17 +109,23 @@ export default function Checkout() {
   };
 
   // Packages with a credit this class can use.
-  const [myPackages, setMyPackages] = useState(null);
+  const [activePackages, setActivePackages] = useState(null);
   const [selectedPackageId, setSelectedPackageId] = useState(null);
   const [packageError, setPackageError] = useState('');
   const [usingCredit, setUsingCredit] = useState(false);
   // A private session is paid with a private credit, a group class with one of its kind.
-  const classCreditTypes = creditTypesForClass(title, isPrivate ? (privateKind ?? 'solo') : null);
+  const classCreditTypes = creditTypesForClass(classTitle, privateKind);
   const guestCount = isPrivate ? ({ duo: 1, trio: 2 }[privateKind] ?? 0) : 0;
-  const guests = guestNames.slice(0, guestCount);
-  const missingGuest = () => (guests.some(n => !n.trim())
-    ? (guestCount === 1 ? "Please enter the second attendee's name." : "Please enter both other attendees' names.")
-    : '');
+  const guests = guestList.slice(0, guestCount).map(g => ({ name: g.name.trim(), email: g.email.trim().toLowerCase() }));
+  const missingGuest = () => {
+    for (const [i, g] of guests.entries()) {
+      const who = guestCount === 1 ? 'the second attendee' : `attendee ${i + 2}`;
+      if (!g.name) return `Please enter ${who}'s name.`;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email)) return `Please enter ${who}'s email.`;
+      if (g.email === attendeeEmail.toLowerCase() || guests.findIndex(o => o.email === g.email) !== i) return 'Each attendee needs their own email address.';
+    }
+    return '';
+  };
 
   // When the class starts, to check packages are still valid by then.
   const classStart = (() => {
@@ -122,14 +146,17 @@ export default function Checkout() {
     apiFetch('/api/me/packages')
       .then(res => (res.ok ? res.json() : Promise.reject(new Error('Could not load your packages'))))
       .then(data => {
-        const usable = data.packages.filter(p => p.status === 'active' && packageCovers(p, classCreditTypes));
-        setMyPackages(usable);
-        setSelectedPackageId((usable.find(coversClassDate) ?? usable[0])?.id ?? null);
+        setActivePackages(data.packages.filter(p => p.status === 'active'));
       })
       .catch(err => setPackageError(err.message));
-    // classCreditTypes is derived from the title, which does not change on this page.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // The packages that can pay for this class, as the kind of session chosen.
+  const myPackages = activePackages?.filter(p => packageCovers(p, classCreditTypes)) ?? null;
+  const usableIds = (myPackages ?? []).filter(coversClassDate).map(p => p.id).join(',');
+  useEffect(() => {
+    setSelectedPackageId(prev => (usableIds.split(',').includes(prev) ? prev : usableIds.split(',')[0] || null));
+  }, [usableIds]);
 
   const handleUseCredit = async () => {
     if (!classId) return setPackageError('Please choose a class from the timetable first.');
@@ -142,7 +169,7 @@ export default function Checkout() {
     try {
       const res = await apiFetch('/api/bookings', {
         method: 'POST',
-        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, private: isPrivate, privateKind, guestNames: guests, clientName: attendeeName })
+        body: JSON.stringify({ packageId: Number(selectedPackageId), classId: Number(classId), spot: selectedSpot, private: isPrivate, privateKind, guests, dryNeedling: withDryNeedling, clientName: attendeeName })
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Something went wrong. Please try again.');
@@ -163,10 +190,10 @@ export default function Checkout() {
     : 'Thu, 20 Aug 2026';
 
   // Infer classType from title for dynamic pricing and shapes
-  const classType = title.toLowerCase().includes('mat') ? 'mat' : title.toLowerCase().includes('barre') ? 'barre' : 'reformer';
+  const classType = classTitle.toLowerCase().includes('mat') ? 'mat' : classTitle.toLowerCase().includes('barre') ? 'barre' : 'reformer';
 
-  // Price per person for this kind of class, e.g. '1,100'.
-  const price = priceFor(title).toLocaleString('en-US');
+  // Price per person (per session when private), e.g. '1,100', plus dry needling.
+  const price = (priceFor(bookingTitle) + (withDryNeedling ? DRY_NEEDLING_PRICE : 0)).toLocaleString('en-US');
 
   // The summary card's button opens the payment step and brings it into view.
   const startDirectPayment = () => {
@@ -197,7 +224,8 @@ export default function Checkout() {
           spot: selectedSpot,
           private: isPrivate,
           privateKind,
-          guestNames: guests,
+          guests,
+          dryNeedling: withDryNeedling,
           referenceId,
           receipt,
           amount: `₱ ${price}`
@@ -236,7 +264,7 @@ export default function Checkout() {
         
         {/* Breadcrumbs */}
         <div className="text-xs font-bold text-brand-dark/60 mb-6">
-          <Link to="/book" className="hover:text-brand-brown">Timetable</Link> <span className="mx-2">&gt;</span> {title} with {instructor}
+          <Link to="/book" className="hover:text-brand-brown">Timetable</Link> <span className="mx-2">&gt;</span> {bookingTitle} with {instructor}
         </div>
 
         <h1 className="text-3xl font-sans font-bold text-brand-dark mb-8">Book this class</h1>
@@ -304,26 +332,43 @@ export default function Checkout() {
                   />
                 </div>
                 <p className="sm:col-span-2 text-xs text-brand-dark/60">This is the email you signed in with. Your confirmation and class reminder go here.</p>
-                {guests.map((name, i) => (
-                  <div key={i} className="sm:col-span-2">
-                    <label htmlFor={`guest-${i}`} className="block text-xs font-bold text-brand-dark/60 mb-1">
-                      {guestCount === 1 ? 'Second attendee' : `Attendee ${i + 2}`}: full name
-                    </label>
-                    <input
-                      id={`guest-${i}`}
-                      type="text"
-                      required
-                      maxLength={100}
-                      value={name}
-                      onChange={(e) => setGuestNames(prev => prev.map((n, j) => (j === i ? e.target.value : n)))}
-                      placeholder={guestCount === 1 ? 'Who is joining you?' : 'Full name'}
-                      className="w-full px-3 py-2 rounded-lg border border-brand-sand focus:outline-none focus:border-brand-brown bg-white"
-                    />
-                  </div>
-                ))}
+                {guests.map((g, i) => {
+                  const who = guestCount === 1 ? 'Second attendee' : `Attendee ${i + 2}`;
+                  return (
+                    <fieldset key={i} className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-brand-sand/40">
+                      <legend className="sr-only">{who}</legend>
+                      <div>
+                        <label htmlFor={`guest-${i}`} className="block text-xs font-bold text-brand-dark/60 mb-1">{who}: full name</label>
+                        <input
+                          id={`guest-${i}`}
+                          type="text"
+                          required
+                          maxLength={100}
+                          value={guestList[i].name}
+                          onChange={(e) => setGuest(i, 'name', e.target.value)}
+                          placeholder="Who is joining you?"
+                          className="w-full px-3 py-2 rounded-lg border border-brand-sand focus:outline-none focus:border-brand-brown bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor={`guest-email-${i}`} className="block text-xs font-bold text-brand-dark/60 mb-1">{who}: email</label>
+                        <input
+                          id={`guest-email-${i}`}
+                          type="email"
+                          required
+                          maxLength={254}
+                          value={guestList[i].email}
+                          onChange={(e) => setGuest(i, 'email', e.target.value)}
+                          placeholder="their@email.com"
+                          className="w-full px-3 py-2 rounded-lg border border-brand-sand focus:outline-none focus:border-brand-brown bg-white"
+                        />
+                      </div>
+                    </fieldset>
+                  );
+                })}
                 {guestCount > 0 && (
                   <p className="sm:col-span-2 text-xs text-brand-dark/60">
-                    This is a {privateKind === 'duo' ? 'duo' : 'trio'} session, so {guestCount === 1 ? 'one more person' : 'two more people'} will join you.
+                    This is a {privateKind === 'duo' ? 'duo' : 'trio'} session, so {guestCount === 1 ? 'one more person' : 'two more people'} will join you. They get the booking emails too, and the booking shows in their account when they sign in with that email.
                   </p>
                 )}
               </div>
@@ -332,9 +377,41 @@ export default function Checkout() {
             {/* Spot Selector */}
             <section>
               <h2 className="text-lg font-bold text-brand-dark mb-4">{isPrivate ? 'Your session' : 'Select your Spot'}</h2>
+              {isPrivate && kindChoices.length > 1 && (
+                <div role="radiogroup" aria-label="Type of private session" className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                  {kindChoices.map(k => {
+                    const selected = privateKind === k.key;
+                    return (
+                      <button
+                        key={k.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setChosenKind(k.key)}
+                        className={`text-left rounded-xl border-2 p-3 sm:p-4 transition-colors ${selected ? 'border-brand-brown bg-brand-brown/5' : 'border-brand-sand/50 bg-white hover:border-brand-sand'}`}
+                      >
+                        <span className="block font-bold text-brand-dark text-sm sm:text-base">{k.key === 'solo' ? 'Private' : k.key === 'clinical' ? 'Clinical' : k.key === 'duo' ? 'Duo' : 'Trio'}</span>
+                        <span className="block text-xs text-brand-dark/60 mt-0.5">{PRIVATE_KIND_DETAILS[k.key]}</span>
+                        <span className="block text-sm font-bold text-brand-dark mt-2">₱{priceFor(k.title).toLocaleString('en-US')}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {privateKind === 'clinical' && (
+                <label className="flex items-start gap-3 border border-brand-sand/50 rounded-xl p-4 bg-white shadow-sm mb-4 cursor-pointer">
+                  <input type="checkbox" checked={dryNeedling} onChange={(e) => setDryNeedling(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#3A2A20] shrink-0" />
+                  <span className="text-sm">
+                    <span className="font-bold text-brand-dark">Add dry needling</span> <span className="text-brand-dark/60">(optional, +₱{DRY_NEEDLING_PRICE.toLocaleString('en-US')})</span>
+                    <span className="block text-xs text-brand-dark/60 mt-0.5">An additional service done by our physical therapist during your clinical session.</span>
+                  </span>
+                </label>
+              )}
               {isPrivate ? (
                 <div className="border border-brand-sand/50 rounded-xl p-5 bg-white shadow-sm text-sm text-brand-dark/80">
-                  {guestCount > 0
+                  {privateKind === 'clinical'
+                    ? 'This is a clinical Pilates session: one-on-one and therapy-focused, so there is no spot to pick. If you have a doctor\'s referral, please bring it.'
+                    : guestCount > 0
                     ? `This is a ${privateKind === 'duo' ? 'duo' : 'trio'} private session: the room and your coach are booked for your group, so there is no spot to pick.`
                     : 'This is a private session: the whole room and your coach are booked just for you, so there is no spot to pick.'}
                 </div>
@@ -416,6 +493,7 @@ export default function Checkout() {
                                 <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">Active</span>
                                 <span className="font-bold text-brand-dark">{p.name}</span>
                               </div>
+                              {p.isShared && <p className="text-xs font-medium text-[#3B657F] mb-1">Shared with you by {p.clientName || p.clientEmail}</p>}
                               <p className="text-sm text-brand-dark/70">
                                 {[
                                   ...(p.unlimited && classCreditTypes.includes('unlimited') ? ['Unlimited group classes'] : []),
@@ -440,6 +518,7 @@ export default function Checkout() {
                       })}
                     </div>
 
+                    {withDryNeedling && <p className="mt-4 text-sm text-brand-dark/70">The package covers the session. Dry needling (₱{DRY_NEEDLING_PRICE.toLocaleString('en-US')}) is paid at the studio.</p>}
                     {packageError && <p role="alert" className="mt-4 text-sm font-medium text-[#E02424]">{packageError}</p>}
 
                     <div className="mt-6 flex justify-end">
@@ -481,7 +560,7 @@ export default function Checkout() {
             {/* Getting There */}
             <section>
               <h2 className="text-lg font-bold text-brand-dark mb-4">Getting there</h2>
-              <p className="text-sm text-brand-dark/70">Omnistellar Building, Angeles City</p>
+              <p className="text-sm text-brand-dark/70">{branch === 'San Fernando' ? 'St. Charbel Square Building, MacArthur Hwy, San Fernando' : 'Omnistellar Building, Fil-Am Friendship Hwy, Angeles City'}</p>
             </section>
 
             <hr className="border-brand-sand/30" />
@@ -520,7 +599,9 @@ export default function Checkout() {
               </div>
               
               <div className="p-6 sm:p-8">
-                <h3 className="text-xl font-bold text-brand-dark mb-6">{title}</h3>
+                <h3 className="text-xl font-bold text-brand-dark mb-1">{bookingTitle}</h3>
+                {bookingTitle !== classTitle && <p className="text-xs text-brand-dark/50 mb-5">In the {classTitle} slot, booked whole for you</p>}
+                {bookingTitle === classTitle && <div className="mb-5" />}
                 
                 <div className="space-y-4 mb-8">
                   <div className="flex gap-4">
@@ -569,7 +650,7 @@ export default function Checkout() {
                     {classId && !isPrivate && classType === 'reformer' && takenSpots.length === 0 && (
                       <Link 
                         to="/checkout"
-                        state={{ ...checkoutState, title: 'Private Class', isPrivate: true, isWaitlist: false, slotsLeft: 1 }}
+                        state={{ ...checkoutState, classTitle, title: kindInfo('solo').title, isPrivate: true, privateKind: 'solo', isWaitlist: false, slotsLeft: 1 }}
                         className="inline-block text-xs font-bold text-brand-brown hover:text-brand-dark underline underline-offset-2 mt-3 transition-colors"
                       >
                         Want to book this as a Private Class?

@@ -448,6 +448,7 @@ export default function AdminDashboard() {
                           <p className="font-bold text-brand-dark shrink-0">{p.price}</p>
                         </div>
                         <p className="text-sm font-bold text-brand-dark">{p.name}</p>
+                        {p.sharedWith?.length > 0 && <p className="text-xs text-[#3B657F] font-medium break-all">Shared with {p.sharedWith.join(', ')}</p>}
                         <p className="text-xs text-brand-dark/60 mb-4">
                           Ref <span className="font-mono">{p.referenceId}</span> • Bought {new Date(p.purchasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                           {p.hasReceipt && <> • <button onClick={() => openPurchaseReceipt(p)} className="font-bold text-brand-brown underline underline-offset-2">View receipt</button></>}
@@ -804,7 +805,8 @@ export default function AdminDashboard() {
                   <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Client</p>
                   <p className="text-sm font-medium text-[#1C2C39]">{selectedBooking.clientName}</p>
                   <p className="text-[13px] text-[#1C2C39]/60 mt-0.5 break-all">{selectedBooking.clientEmail}</p>
-                  {selectedBooking.guestNames?.length > 0 && <p className="text-[13px] text-[#1C2C39]/60 mt-0.5">With {selectedBooking.guestNames.join(' and ')}</p>}
+                  {selectedBooking.guestNames?.length > 0 && <p className="text-[13px] text-[#1C2C39]/60 mt-0.5 break-words">With {selectedBooking.guestNames.map((n, i) => (selectedBooking.guestEmails?.[i] ? `${n} (${selectedBooking.guestEmails[i]})` : n)).join(' and ')}</p>}
+                  {selectedBooking.dryNeedling && <p className="text-[13px] text-[#1C2C39]/60 mt-0.5">+ Dry needling (₱500)</p>}
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-[#1C2C39]/40 uppercase tracking-widest mb-1">Class</p>
@@ -976,7 +978,11 @@ export default function AdminDashboard() {
                             </button>
                           ))}
                         </div>
-                        <p className="mt-2 text-xs text-brand-dark/50">Shown to clients as "{privateKind(privateKindKey).title}" and booked whole by one client.</p>
+                        <p className="mt-2 text-xs text-brand-dark/50">
+                          {privateKindKey === 'solo'
+                            ? 'Shown as "Private Session" and booked whole by one client, who picks Private, Duo, Trio or Clinical when booking (Duo needs a capacity of 2+, Trio 3).'
+                            : `Shown to clients as "${privateKind(privateKindKey).title}" and booked whole by one client.`}
+                        </p>
                       </div>
                     )}
                   </div>
