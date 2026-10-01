@@ -5,7 +5,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, User, Ticket } from 'lucide-react';
 import PaymentUploadPanel from '../components/organisms/PaymentUploadPanel';
-import { API_BASE, apiFetch } from '../api/base';
+import { apiFetch } from '../api/base';
 import { creditTypesForClass, creditLabel } from '../api/packages';
 import { priceFor } from '../api/classTypes';
 import { useAuth } from '../contexts/AuthContext';
@@ -139,9 +139,9 @@ export default function Checkout() {
     setSubmitting(true);
     setSubmitError('');
     try {
-      const res = await fetch(`${API_BASE}/api/bookings`, {
+      // apiFetch sends the sign-in: booking needs an account.
+      const res = await apiFetch('/api/bookings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           classId: Number(classId),
           clientName: attendeeName,
