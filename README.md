@@ -5,8 +5,6 @@ A full-stack booking application for a boutique Pilates studio with two branches
 > **Live site:** https://revive-pilates-studio-6b8h.vercel.app
 > **API:** https://revive-pilates-studio.vercel.app
 
-![Revive Pilates Studio Home Page](./docs/screenshot.jpg?v=1)
-
 ---
 
 ### 01 — FEATURES
