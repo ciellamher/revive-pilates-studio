@@ -46,7 +46,9 @@ export default function PageTransition({ children }) {
       // 3. Wait for it to cover the screen, then swap the page content
       const t2 = setTimeout(() => {
         setDisplayLocation(location);
+        document.documentElement.style.scrollBehavior = 'auto';
         window.scrollTo(0, 0);
+        document.documentElement.style.scrollBehavior = '';
         scrollToHash(location.hash);
         
         // 4. Slide out down to the bottom
