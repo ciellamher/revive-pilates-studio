@@ -73,9 +73,11 @@ export async function subscribe(pool, { email, name }) {
 export async function getDirectory(pool) {
   const result = await pool.query(
     `SELECT u.email, u.name, to_char(u.created_at, 'YYYY-MM-DD') AS joined,
-            count(b.id) FILTER (WHERE b.status NOT IN ('rejected', 'cancelled'))::int AS bookings
+            count(b.id) FILTER (WHERE b.status NOT IN ('rejected', 'cancelled'))::int AS bookings,
+            array_remove(array_agg(DISTINCT c.branch FILTER (WHERE b.status NOT IN ('rejected', 'cancelled'))), NULL) AS branches
      FROM users u
      LEFT JOIN bookings b ON b.client_email = u.email
+     LEFT JOIN classes c ON c.id = b.class_id
      GROUP BY u.id
      ORDER BY u.name, u.email`
   )

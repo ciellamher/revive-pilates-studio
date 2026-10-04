@@ -282,8 +282,8 @@ export default function AdminDashboard() {
 
   const renderContent = () => {
     if (activeTab === 'pending') {
-      const pendingList = pendingBookings.filter(b => b.status === 'pending');
-      const resolvedList = pendingBookings.filter(b => b.status !== 'pending');
+      const pendingList = pendingBookings.filter(b => b.status === 'pending' && b.branch === branchName);
+      const resolvedList = pendingBookings.filter(b => b.status !== 'pending' && b.branch === branchName);
 
       return (
         <div className="animate-fade-in">
@@ -583,7 +583,9 @@ export default function AdminDashboard() {
 
     if (activeTab === 'users') {
       let filteredClients = clientsData.filter(client => {
-        return client.name.toLowerCase().includes(clientSearch.toLowerCase()) || client.email.toLowerCase().includes(clientSearch.toLowerCase());
+        const matchesSearch = client.name.toLowerCase().includes(clientSearch.toLowerCase()) || client.email.toLowerCase().includes(clientSearch.toLowerCase());
+        const matchesBranch = !client.branches || client.branches.length === 0 || client.branches.includes(branchName);
+        return matchesSearch && matchesBranch;
       });
 
       filteredClients.sort((a, b) => {
