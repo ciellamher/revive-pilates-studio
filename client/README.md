@@ -1,16 +1,40 @@
-# React + Vite
+# Revive Pilates Studio — Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The React frontend for Revive Pilates Studio: class schedule, spot picking, packages, bookings, and the admin dashboard.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### 01 — INSTALL
 
-## React Compiler
+```bash
+cd client
+npm install
+cp .env.example .env
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+> Runs on a simulated backend by default. Set `VITE_USE_MOCK_API=false` and `VITE_API_BASE_URL=http://localhost:3000` to use the real API.
 
-## Expanding the Oxlint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+### 02 — RUN
+
+```bash
+npm run dev       # http://localhost:5173
+npm run build     # production build in dist/
+```
+
+---
+
+### 03 — WHAT'S INSIDE
+
+- `src/pages/` — One component per route, including the admin dashboard.
+- `src/api/` — Calls to the Express API, with the mock backend for demo mode.
+- `src/components/` — UI built in atomic design: `atoms/`, `molecules/`, `organisms/`.
+- `.env.production` — Public API URL used by every production build. No secrets.
+- `vercel.json` — Hosting config for the Vercel deployment.
+
+---
+
+### 04 — LICENSE
+
+MIT. See [LICENSE](../LICENSE).

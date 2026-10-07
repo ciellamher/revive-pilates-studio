@@ -1,12 +1,12 @@
-# How it's built
+# How It's Built
 
-Two flowcharts of Revive Pilates Studio: how the parts connect, and how one
-booking moves through them.
+Two flowcharts of Revive Pilates Studio: how the parts connect, and how one booking moves through them.
 
-## Architecture
+---
 
-Every page talks to one Express API. Only the API touches the database and
-sends email.
+### 01 — ARCHITECTURE
+
+> Every page talks to one Express API. Only the API touches the database and sends email.
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"primaryColor": "#FBF8F3", "primaryBorderColor": "#E4D9CA", "primaryTextColor": "#2A1D15", "lineColor": "#9C8B7C", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 40, "rankSpacing": 70, "padding": 20}}}%%
@@ -43,7 +43,9 @@ flowchart LR
 | **GitHub Actions** | Calls the API every 30 minutes to send due reminders. Every push to GitHub also redeploys the site |
 | **Client inbox** | The sign-in link in the email opens the site, signed in |
 
-## A booking, start to finish
+---
+
+### 02 — A BOOKING, START TO FINISH
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"primaryColor": "#FBF8F3", "primaryBorderColor": "#E4D9CA", "primaryTextColor": "#2A1D15", "lineColor": "#9C8B7C", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"curve": "basis", "nodeSpacing": 34, "rankSpacing": 40, "padding": 16}}}%%

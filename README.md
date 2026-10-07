@@ -1,5 +1,7 @@
 # Revive Pilates Studio
 
+[![Made with AI](https://img.shields.io/badge/Made_with-AI_assistance-blue)](AI-USAGE.md)
+
 A full-stack booking application for a boutique Pilates studio with two branches. Clients can browse classes, pick their spot, purchase packages, and manage bookings, while the studio manages the schedule, coaches, and payments from an admin dashboard.
 
 > **Live site:** https://revive-pilates-studio-6b8h.vercel.app
@@ -87,7 +89,7 @@ npm run dev
 
 - `client/` — React frontend utilizing atomic design (`src/components/atoms, molecules, organisms`).
 - `server/` — Express API, database repositories (`*Repo.js`), and mailer configuration.
-- `.github/workflows/` — CI/CD for GitHub Pages and chron jobs for email reminders.
+- `.github/workflows/` — CI/CD for GitHub Pages and cron jobs for email reminders.
 - `docs/` — Proposal, mockups, design system, and security notes.
 
 ---
@@ -110,12 +112,12 @@ npm run dev
 
 ### 08 — AI USAGE CREDIT
 
-This project was developed with the assistance of Claude for generating boilerplate code, debugging, and step-by-step guidance on features outside the core scope. The original UI design, core business logic, domain research, and database schema were all authored manually by me. See `AI-USAGE.md` for a detailed breakdown.
+Built with Claude (Anthropic) as a coding assistant for boilerplate, debugging, and guidance on features outside the core scope. The UI design, core business logic, domain research, and database schema were written by hand.
+
+> Full breakdown: [AI-USAGE.md](AI-USAGE.md)
 
 ---
 
-### 09 — AUTHOR & LICENSE
+### 09 — LICENSE
 
-**Author:** Graciella Mhervie D. Jimenez | 6APSI | CS-402
-
-**License:** MIT
+MIT. See [LICENSE](LICENSE).
