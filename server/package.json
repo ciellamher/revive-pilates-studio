@@ -9,7 +9,8 @@
     "db:schema": "node --env-file=.env db/run.js db/schema.sql",
     "db:seed": "node --env-file=.env db/run.js db/seed.sql",
     "db:reset": "npm run db:schema && npm run db:seed",
-    "db:october": "node --env-file=.env db/run.js db/october-schedule.sql"
+    "db:october": "node --env-file=.env db/run.js db/october-schedule.sql",
+    "db:demo-clients": "node --env-file=.env db/run.js db/demo-clients.sql"
   },
   "engines": {
     "node": ">=20"
