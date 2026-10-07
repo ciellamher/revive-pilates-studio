@@ -6,6 +6,7 @@
 --
 --   npm run db:october
 --
+-- Every class starts between 8 AM and 7 PM, the hours the schedule grid shows.
 -- The week repeats from Oct 8 to Oct 31. isodow: 1 = Monday ... 7 = Sunday.
 
 INSERT INTO classes
@@ -25,8 +26,8 @@ SELECT
   w.title IN ('Reformer Flow', 'Private Session')
 FROM generate_series(DATE '2026-10-08', DATE '2026-10-31', interval '1 day') AS d(day)
 JOIN (VALUES
-  -- Angeles: Bea opens weekdays, Chelsea runs the evenings, Tet teaches mat and barre.
-  (1, 'Angeles', '07:00 AM', 'Reformer Flow',   'Bea'),
+  -- Angeles: Bea teaches weekday mornings, Chelsea runs the evenings, Tet teaches mat and barre.
+  (1, 'Angeles', '10:00 AM', 'Reformer Flow',   'Bea'),
   (1, 'Angeles', '08:00 AM', 'Reformer Flow',   'Bea'),
   (1, 'Angeles', '09:00 AM', 'Reformer Flow',   'Bea'),
   (1, 'Angeles', '12:00 PM', 'Mat Pilates',     'Chelsea'),
@@ -34,14 +35,14 @@ JOIN (VALUES
   (1, 'Angeles', '06:00 PM', 'Reformer Flow',   'Chelsea'),
   (1, 'Angeles', '07:00 PM', 'Barre',           'Tet'),
 
-  (2, 'Angeles', '07:00 AM', 'Reformer Flow',   'Bea'),
+  (2, 'Angeles', '11:00 AM', 'Reformer Flow',   'Bea'),
   (2, 'Angeles', '08:00 AM', 'Reformer Flow',   'Bea'),
   (2, 'Angeles', '10:00 AM', 'Private Session', 'Bea'),
   (2, 'Angeles', '05:00 PM', 'Mat Pilates',     'Chelsea'),
   (2, 'Angeles', '06:00 PM', 'Reformer Flow',   'Chelsea'),
   (2, 'Angeles', '07:00 PM', 'Reformer Flow',   'Chelsea'),
 
-  (3, 'Angeles', '07:00 AM', 'Reformer Flow',   'Bea'),
+  (3, 'Angeles', '10:00 AM', 'Reformer Flow',   'Bea'),
   (3, 'Angeles', '08:00 AM', 'Reformer Flow',   'Bea'),
   (3, 'Angeles', '09:00 AM', 'Reformer Flow',   'Bea'),
   (3, 'Angeles', '12:00 PM', 'Mat Pilates',     'Chelsea'),
@@ -49,14 +50,14 @@ JOIN (VALUES
   (3, 'Angeles', '06:00 PM', 'Reformer Flow',   'Chelsea'),
   (3, 'Angeles', '07:00 PM', 'Mat Pilates',     'Tet'),
 
-  (4, 'Angeles', '07:00 AM', 'Reformer Flow',   'Bea'),
+  (4, 'Angeles', '11:00 AM', 'Reformer Flow',   'Bea'),
   (4, 'Angeles', '08:00 AM', 'Reformer Flow',   'Bea'),
   (4, 'Angeles', '10:00 AM', 'Private Session', 'Bea'),
   (4, 'Angeles', '05:00 PM', 'Mat Pilates',     'Chelsea'),
   (4, 'Angeles', '06:00 PM', 'Reformer Flow',   'Chelsea'),
   (4, 'Angeles', '07:00 PM', 'Reformer Flow',   'Chelsea'),
 
-  (5, 'Angeles', '07:00 AM', 'Reformer Flow',   'Van'),
+  (5, 'Angeles', '10:00 AM', 'Reformer Flow',   'Van'),
   (5, 'Angeles', '08:00 AM', 'Reformer Flow',   'Van'),
   (5, 'Angeles', '09:00 AM', 'Reformer Flow',   'Van'),
   (5, 'Angeles', '05:00 PM', 'Reformer Flow',   'Chelsea'),
@@ -73,7 +74,7 @@ JOIN (VALUES
   (7, 'Angeles', '04:00 PM', 'Reformer Flow',   'Bea'),
 
   -- San Fernando: Van takes weekday mornings, Abby the afternoons and evenings.
-  (1, 'San Fernando', '07:00 AM', 'Reformer Flow',   'Van'),
+  (1, 'San Fernando', '10:00 AM', 'Reformer Flow',   'Van'),
   (1, 'San Fernando', '08:00 AM', 'Reformer Flow',   'Van'),
   (1, 'San Fernando', '09:00 AM', 'Reformer Flow',   'Van'),
   (1, 'San Fernando', '05:00 PM', 'Reformer Flow',   'Abby'),
@@ -86,7 +87,7 @@ JOIN (VALUES
   (2, 'San Fernando', '06:00 PM', 'Reformer Flow',   'Van'),
   (2, 'San Fernando', '07:00 PM', 'Reformer Flow',   'Van'),
 
-  (3, 'San Fernando', '07:00 AM', 'Reformer Flow',   'Van'),
+  (3, 'San Fernando', '10:00 AM', 'Reformer Flow',   'Van'),
   (3, 'San Fernando', '08:00 AM', 'Reformer Flow',   'Van'),
   (3, 'San Fernando', '09:00 AM', 'Reformer Flow',   'Van'),
   (3, 'San Fernando', '05:00 PM', 'Reformer Flow',   'Abby'),
