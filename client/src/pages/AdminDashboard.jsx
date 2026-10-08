@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/organisms/Navbar';
 import ClassScheduleGrid from '../components/organisms/ClassScheduleGrid';
 import CustomDropdown from '../components/atoms/CustomDropdown';
-import { Calendar, Users, UserCheck, ClipboardCheck, Settings, CheckCircle, XCircle, Plus, Minus, Edit3, LayoutList, ChevronLeft, ChevronRight, ChevronDown, Search, ArrowUp, ArrowDown, Filter, Upload } from 'lucide-react';
+import { Calendar, Users, UserCheck, ClipboardCheck, Settings, CheckCircle, XCircle, Plus, Minus, LayoutList, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import AdminCoaches from '../components/organisms/AdminCoaches';
 import AdminStudioSettings from '../components/organisms/AdminStudioSettings';
 import AdminClientProfile from '../components/organisms/AdminClientProfile';

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Plus, Minus } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 const FAQS = [
   { question: "What should I bring to a Pilates class?", answer: "We recommend bringing a water bottle, grip socks (required for reformer classes), and a small towel. Wear comfortable, form-fitting athletic wear so our instructors can check your alignment." },

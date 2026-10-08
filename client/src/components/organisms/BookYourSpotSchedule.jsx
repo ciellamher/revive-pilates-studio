@@ -130,7 +130,6 @@ export default function BookYourSpotSchedule({ globalLocation = 'Location', setG
     }
   }, [availableInstructors, instructor]);
 
-  const monthYearHeading = currentWeekDays[0].fullDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
   return (
     <div className="w-full relative">

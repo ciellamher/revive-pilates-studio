@@ -978,6 +978,13 @@ app.use((request, response) => {
 })
 
 app.use((error, request, response, next) => {
+  // Problems with the request itself are the client's to fix, not a crash.
+  if (error.type === 'entity.parse.failed') {
+    return response.status(400).json({ error: 'The request body is not valid JSON' })
+  }
+  if (error.type === 'entity.too.large') {
+    return response.status(413).json({ error: 'The request body is too large' })
+  }
   console.error(error)
   response.status(500).json({ error: 'Something went wrong on the server' })
 })

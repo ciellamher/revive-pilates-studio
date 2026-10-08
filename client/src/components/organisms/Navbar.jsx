@@ -1,4 +1,4 @@
-import { Menu, User, Calendar, Package, Award, Receipt, Bell, FileText, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, User, Calendar, Package, Receipt, Bell, FileText, LogOut, ChevronDown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';

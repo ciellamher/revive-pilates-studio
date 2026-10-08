@@ -1,4 +1,4 @@
-// Data access for class sessions. Same rules as sightingsRepo.js: every value
+// Data access for class sessions. Every value
 // goes in the parameter array, never into the SQL string.
 
 // class_date is read back as text so it never passes through a JavaScript Date

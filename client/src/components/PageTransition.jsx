@@ -52,7 +52,7 @@ export default function PageTransition({ children }) {
         scrollToHash(location.hash);
         
         // 4. Slide out down to the bottom
-        const t3 = setTimeout(() => {
+        timerRef.current = setTimeout(() => {
           setPhase('exiting');
           
           // 5. Reset to idle after animation finishes

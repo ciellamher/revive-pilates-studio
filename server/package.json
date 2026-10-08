@@ -8,7 +8,7 @@
     "dev": "node --env-file=.env --watch server.js",
     "db:schema": "node --env-file=.env db/run.js db/schema.sql",
     "db:seed": "node --env-file=.env db/run.js db/seed.sql",
-    "db:reset": "npm run db:schema && npm run db:seed",
+    "db:reset": "npm run db:schema && npm run db:seed && npm run db:october && npm run db:demo-clients",
     "db:october": "node --env-file=.env db/run.js db/october-schedule.sql",
     "db:demo-clients": "node --env-file=.env db/run.js db/demo-clients.sql"
   },

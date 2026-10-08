@@ -1,5 +1,4 @@
 import Navbar from '../components/organisms/Navbar';
-import ReservationSelector from '../components/organisms/ReservationSelector';
 import SpotSelectorMap from '../components/organisms/SpotSelectorMap';
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';

@@ -12,7 +12,7 @@ npm install
 cp .env.example .env
 ```
 
-> Runs on a simulated backend by default. Set `VITE_USE_MOCK_API=false` and `VITE_API_BASE_URL=http://localhost:3000` to use the real API.
+> Start the API first (see the main README). `VITE_API_BASE_URL` points the client at it: `http://localhost:3000` locally.
 
 ---
 
@@ -28,8 +28,8 @@ npm run build     # production build in dist/
 ### 03 — WHAT'S INSIDE
 
 - `src/pages/` — One component per route, including the admin dashboard.
-- `src/api/` — Calls to the Express API, with the mock backend for demo mode.
-- `src/components/` — UI built in atomic design: `atoms/`, `molecules/`, `organisms/`.
+- `src/api/` — Calls to the Express API, the signed-in session, and shared class and package rules.
+- `src/components/` — Shared UI: `atoms/` and `organisms/`, from the atomic design plan.
 - `.env.production` — Public API URL used by every production build. No secrets.
 - `vercel.json` — Hosting config for the Vercel deployment.
 

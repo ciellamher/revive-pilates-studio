@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import Navbar from '../components/organisms/Navbar';
-import Footer from '../components/organisms/Footer';
 import { API_BASE } from '../api/base';
 import { UserPlus, LogIn, ArrowLeft } from 'lucide-react';
 
 export default function Login() {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     name: ''
