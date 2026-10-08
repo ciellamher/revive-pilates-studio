@@ -73,11 +73,15 @@ if (IS_PRODUCTION && !process.env.JWT_SECRET) {
 }
 const JWT_SECRET = process.env.JWT_SECRET || 'local-development-only-secret';
 
-// Who may use the admin dashboard. Comma-separated emails.
-const adminEmails = (process.env.ADMIN_EMAILS || 'gdjimenez@student.hau.edu.ph')
+// Who may use the admin dashboard. Comma-separated emails. With none set,
+// nobody is an admin: the site still works, only the dashboard is closed.
+const adminEmails = (process.env.ADMIN_EMAILS || '')
   .split(',')
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
+if (adminEmails.length === 0) {
+  console.warn('ADMIN_EMAILS is not set, so no one can open the admin dashboard.');
+}
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const BRANCHES = ['Angeles', 'San Fernando'];
