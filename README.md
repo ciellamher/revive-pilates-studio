@@ -1,7 +1,5 @@
 # Revive Pilates Studio
 
-[![Made with AI](https://img.shields.io/badge/Made_with-AI_assistance-blue)](AI-USAGE.md)
-
 A full-stack booking application for a boutique Pilates studio with two branches. Clients can browse classes, pick their spot, purchase packages, and manage bookings, while the studio manages the schedule, coaches, and payments from an admin dashboard.
 
 > **Live site:** https://revive-pilates-studio-6b8h.vercel.app
@@ -53,15 +51,39 @@ A full-stack booking application for a boutique Pilates studio with two branches
 
 ### 03 — SCREENSHOTS
 
-Taken from a local copy running the demo data (`npm run db:reset`).
+Every screen, from a local copy running the demo data (`npm run db:reset`). The client is **Ella**; the studio admin is **Revive**.
+
+**Public pages**
 
 | | |
 | --- | --- |
-| ![Class schedule](docs/screenshots/01-schedule.jpg) **Schedule** — a day's classes with spots left | ![Spot picker](docs/screenshots/02-spot-picker.jpg) **Book this class** — the spot picker |
-| ![My schedule](docs/screenshots/03-client-schedule.jpg) **My schedule** — upcoming bookings | ![My packages](docs/screenshots/04-client-packages.jpg) **My packages** — credits left and expiry |
-| ![Admin schedule](docs/screenshots/06-admin-schedule.jpg) **Manage Schedule** — drag-and-drop week | ![Client directory](docs/screenshots/07-admin-clients.jpg) **Client Directory** |
+| ![Home](docs/screenshots/01-home.jpg) **Home** | ![Pilates classes](docs/screenshots/02-pilates.jpg) **Pilates classes** |
+| ![Pricing](docs/screenshots/03-pricing.jpg) **Pricing** | ![Sign in](docs/screenshots/06-login.jpg) **Sign in** |
+| ![Schedule — list](docs/screenshots/04-schedule-list.jpg) **Schedule — list** | ![Schedule — calendar](docs/screenshots/05-schedule-calendar.jpg) **Schedule — calendar** |
 
-> Full page: [Pending Verifications and package payments](docs/screenshots/05-admin-pending.jpg) · Phone: [schedule at 390px](docs/screenshots/08-mobile-schedule.jpg)
+**Client account**
+
+| | |
+| --- | --- |
+| ![Book this class — spot picker and payment](docs/screenshots/07-checkout.jpg) **Book this class — spot picker and payment** | ![Buy a package](docs/screenshots/08-buy-package.jpg) **Buy a package** |
+| ![My profile](docs/screenshots/09-client-profile.jpg) **My profile** | ![My schedule](docs/screenshots/10-client-schedule.jpg) **My schedule** |
+| ![My packages](docs/screenshots/11-client-packages.jpg) **My packages** | ![Billing](docs/screenshots/12-client-billing.jpg) **Billing** |
+| ![Notification settings](docs/screenshots/13-client-notifications.jpg) **Notification settings** |  |
+
+**Admin dashboard**
+
+| | |
+| --- | --- |
+| ![Pending Verifications and package payments](docs/screenshots/14-admin-pending.jpg) **Pending Verifications and package payments** | ![Manage Schedule — calendar](docs/screenshots/15-admin-calendar.jpg) **Manage Schedule — calendar** |
+| ![Manage Schedule — list](docs/screenshots/16-admin-list.jpg) **Manage Schedule — list** | ![Coaches](docs/screenshots/17-admin-coaches.jpg) **Coaches** |
+| ![Client Directory](docs/screenshots/18-admin-clients.jpg) **Client Directory** | ![Client profile](docs/screenshots/19-admin-client-profile.jpg) **Client profile** |
+| ![Studio Settings](docs/screenshots/20-admin-settings.jpg) **Studio Settings** |  |
+
+**On a phone (390px)**
+
+| | | | |
+| --- | --- | --- | --- |
+| ![Home](docs/screenshots/21-phone-home.jpg) | ![Schedule](docs/screenshots/22-phone-schedule.jpg) | ![Checkout](docs/screenshots/23-phone-checkout.jpg) | ![My schedule](docs/screenshots/24-phone-dashboard.jpg) |
 
 ---
 
@@ -162,11 +184,9 @@ npm run dev        # site on http://localhost:5173
 
 ---
 
-### 10 — AI USAGE CREDIT
+### 10 — AI USAGE
 
-Built with Claude (Anthropic) as a coding assistant for boilerplate, debugging, and guidance on features outside the core scope. The UI design, core business logic, domain research, and database schema were written by hand.
-
-> Full breakdown: [AI-USAGE.md](AI-USAGE.md)
+How AI tools were used in this project, and which parts were written by hand, is documented in [AI-USAGE.md](AI-USAGE.md).
 
 ---
 
