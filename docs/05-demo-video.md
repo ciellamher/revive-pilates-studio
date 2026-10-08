@@ -2,7 +2,9 @@
 
 Three to five minutes, screen recorded, your own voice. Nobody watches ten.
 
-**Link:** (paste it here, and in the main README)
+**Link:** https://drive.google.com/file/d/1RWbD6pSrBPUFyJ21UNNw4K2OX9kEm51Y/view?usp=sharing
+
+**Slides:** [revive-pilates-presentation.pdf](revive-pilates-presentation.pdf)
 
 ## The structure that always works
 

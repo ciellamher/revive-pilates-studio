@@ -8,20 +8,43 @@ needs.
 
 ---
 
-## Week of YYYY-MM-DD
+## Week of 2026-10-05 (finals week)
 
-**Done.** What actually works now, in the deployed app rather than on your laptop.
+**Done.** The final submission, polished. Demo schedule for the rest of
+October and demo clients with packages, so the live site and the admin
+dashboard show real-looking data. Removed leftover template code (the
+"sightings" example and the browser-only demo backend) and unused components.
+Malformed JSON now gets a 400 instead of a 500. Filled in these docs.
 
-**Stuck.** What is not working, and the most specific description you can give.
-"CORS" is not specific. "The preflight OPTIONS returns 404 because my router is
-mounted above cors" is.
+**Stuck.** Nothing blocking. Pushes to GitHub failed for a few minutes with an
+Internal Server Error on GitHub's side and went through on retry.
 
-**Hours.** Roughly. You will need this to estimate anything, ever.
-
-**Next.** One or two things, not a wish list.
+**Next.** Waitlists for full classes, the one feature cut from the proposal.
 
 ---
 
-## Week of YYYY-MM-DD
+## Week of 2026-09-28 (week 3)
 
-...
+**Done.** The app moved from mock data to PostgreSQL on Neon and was deployed
+to Vercel (site and API). Bookings with spot selection and a database-level
+guard against double booking; packages with credits and expiry; private
+sessions (solo, duo, trio, clinical); email sign-in links, confirmations and
+reminders via a GitHub Actions job; a Google Calendar-style admin schedule with
+drag and drop; a class roster where the admin confirms, moves or cancels
+bookings; filtering the admin dashboard by branch. The register page was
+removed in favour of email sign-in.
+
+**Stuck.** Times shifting by a day: a `DATE` passed through a JavaScript
+`Date` picks up a timezone. Fixed by reading dates back as text
+(`to_char(class_date, 'YYYY-MM-DD')`). Smooth scrolling made every page change
+visibly scroll to the top; fixed by switching it off for the jump.
+
+**Next.** Presentation, slides and the square image.
+
+---
+
+## Week of 2026-09-21 (weeks 1 and 2)
+
+Recorded in [REPORT.md](../REPORT.md), which was submitted each week: the full
+React frontend on mock data in week 1, then the Express API, email sign-in and
+the first deployment in week 2.

@@ -6,6 +6,7 @@ A full-stack booking application for a boutique Pilates studio with two branches
 
 > **Live site:** https://revive-pilates-studio-6b8h.vercel.app
 > **API:** https://revive-pilates-studio.vercel.app
+> **Demo video:** https://drive.google.com/file/d/1RWbD6pSrBPUFyJ21UNNw4K2OX9kEm51Y/view?usp=sharing
 
 ---
 
@@ -70,24 +71,28 @@ cd ../server && npm install
 ```
 
 **Environment Variables:**
-Copy `.env.example` to `.env` in both `client` and `server` directories and configure your database URL, JWT secret, and email settings.
+Copy `.env.example` to `.env` in both `client` and `server`. In `server/.env`, set `DATABASE_URL` to your PostgreSQL database and `ADMIN_EMAILS` to your own email. Leave the Gmail fields empty to send mail to a test inbox.
 
 **Database Setup & Start:**
 ```bash
 cd server
-npm run db:schema
-npm run dev
+npm run db:reset   # tables, coaches, the October schedule and demo clients
+npm run dev        # API on http://localhost:3000
 
 # In a new terminal
 cd client
-npm run dev
+npm run dev        # site on http://localhost:5173
 ```
+
+> To sign in, enter your email on the site. With no Gmail set, the server terminal prints a preview link to the email; open it and click the sign-in link. Use the `ADMIN_EMAILS` address to reach the admin dashboard.
+
+> `db:reset` only adds rows and replaces its own demo clients (`@example.com`), so it is safe to run twice.
 
 ---
 
 ### 05 — PROJECT STRUCTURE
 
-- `client/` — React frontend utilizing atomic design (`src/components/atoms, molecules, organisms`).
+- `client/` — React frontend: `src/pages/` per route, `src/components/` for shared pieces, `src/api/` for calls to the API.
 - `server/` — Express API, database repositories (`*Repo.js`), and mailer configuration.
 - `.github/workflows/` — CI/CD for GitHub Pages and cron jobs for email reminders.
 - `docs/` — Proposal, mockups, design system, and security notes.
