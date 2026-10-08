@@ -1,5 +1,7 @@
 # Revive Pilates Studio
 
+[![Made with AI](https://img.shields.io/badge/Made_with-AI_assistance-blue)](AI-USAGE.md)
+
 A full-stack booking application for a boutique Pilates studio with two branches. Clients can browse classes, pick their spot, purchase packages, and manage bookings, while the studio manages the schedule, coaches, and payments from an admin dashboard.
 
 > **Live site:** https://revive-pilates-studio-6b8h.vercel.app
@@ -186,7 +188,9 @@ npm run dev        # site on http://localhost:5173
 
 ### 10 — AI USAGE
 
-How AI tools were used in this project, and which parts were written by hand, is documented in [AI-USAGE.md](AI-USAGE.md).
+Built with **Claude** (Anthropic) as a coding assistant, used moderately: for boilerplate, library setup, debugging, and the finals-week demo data and clean-up. The UI design, the database schema, the booking and package rules, and the admin schedule were written by hand.
+
+> Full breakdown, with commits: [AI-USAGE.md](AI-USAGE.md)
 
 ---
 
